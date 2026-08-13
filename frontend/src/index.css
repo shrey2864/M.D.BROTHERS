@@ -1,0 +1,113 @@
+@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;0,700;1,300;1,400;1,500&family=Manrope:wght@200;300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+    :root {
+        --background: 0 0% 2%;
+        --foreground: 0 0% 96%;
+        --card: 0 0% 4%;
+        --card-foreground: 0 0% 96%;
+        --popover: 0 0% 4%;
+        --popover-foreground: 0 0% 96%;
+        --primary: 39 47% 56%;
+        --primary-foreground: 0 0% 4%;
+        --secondary: 0 0% 8%;
+        --secondary-foreground: 0 0% 90%;
+        --muted: 0 0% 10%;
+        --muted-foreground: 240 5% 65%;
+        --accent: 39 47% 56%;
+        --accent-foreground: 0 0% 4%;
+        --destructive: 0 62.8% 50%;
+        --destructive-foreground: 0 0% 98%;
+        --border: 0 0% 14%;
+        --input: 0 0% 16%;
+        --ring: 39 47% 56%;
+        --radius: 0rem;
+    }
+}
+
+@layer base {
+    * {
+        @apply border-border;
+    }
+    html {
+        background: #050505;
+    }
+    body {
+        @apply bg-background text-foreground font-sans;
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+    }
+    ::selection {
+        background: #cba153;
+        color: #050505;
+    }
+    ::-webkit-scrollbar {
+        width: 6px;
+    }
+    ::-webkit-scrollbar-track {
+        background: #050505;
+    }
+    ::-webkit-scrollbar-thumb {
+        background: #2a2a2a;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+        background: #cba153;
+    }
+}
+
+/* Film grain overlay to kill digital flatness */
+body::after {
+    content: "";
+    position: fixed;
+    inset: 0;
+    z-index: 100;
+    pointer-events: none;
+    opacity: 0.05;
+    mix-blend-mode: overlay;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+@layer base {
+    [data-debug-wrapper="true"] {
+        display: contents !important;
+    }
+    [data-debug-wrapper="true"] > * {
+        margin-left: inherit;
+        margin-right: inherit;
+        margin-top: inherit;
+        margin-bottom: inherit;
+        padding-left: inherit;
+        padding-right: inherit;
+        padding-top: inherit;
+        padding-bottom: inherit;
+        column-gap: inherit;
+        row-gap: inherit;
+        gap: inherit;
+        border-left-width: inherit;
+        border-right-width: inherit;
+        border-top-width: inherit;
+        border-bottom-width: inherit;
+        border-left-style: inherit;
+        border-right-style: inherit;
+        border-top-style: inherit;
+        border-bottom-style: inherit;
+        border-left-color: inherit;
+        border-right-color: inherit;
+        border-top-color: inherit;
+        border-bottom-color: inherit;
+    }
+}
+
+/* Editorial underlined input */
+.lux-input {
+    @apply w-full bg-transparent border-0 border-b border-white/20 rounded-none px-0 py-3 text-sm text-white placeholder:text-zinc-600 focus-visible:outline-none focus-visible:border-gold focus-visible:ring-0 transition-colors duration-300;
+}
+
+.text-outline {
+    -webkit-text-stroke: 1px rgba(255, 255, 255, 0.22);
+    color: transparent;
+}
