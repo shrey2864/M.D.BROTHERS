@@ -4,6 +4,7 @@ import { Menu, X, Gem } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 
 const LINKS = [
+  { to: "/dashboard", label: "Dashboard", authOnly: true },
   { to: "/search", label: "Search" },
   { to: "/collection", label: "Collection" },
   { to: "/#story", label: "Our Story", anchor: true },
@@ -24,15 +25,15 @@ export const Header = () => {
   return (
     <header className="fixed top-0 left-0 right-0 z-50 border-b border-white/10 bg-black/60 backdrop-blur-xl">
       <div className="mx-auto flex max-w-[1440px] items-center justify-between px-6 py-4">
-        <Link to="/" data-testid="header-logo-link" className="flex items-center gap-2 group">
-          <Gem className="h-4 w-4 text-gold transition-transform duration-500 group-hover:rotate-180" strokeWidth={1.5} />
+        <Link to="/" data-testid="header-logo-link" className="flex items-center gap-3 group">
+          <img src="/logo.jpg" alt="M.D.Brothers logo" className="h-9 w-9 bg-white object-contain p-0.5 transition-transform duration-500 group-hover:scale-105" />
           <span className="font-serif text-lg tracking-[0.18em] text-white">
             M.D.<span className="text-gold">BROTHERS</span>
           </span>
         </Link>
 
         <nav className="hidden items-center gap-10 md:flex" data-testid="header-nav">
-          {LINKS.map((l) =>
+          {LINKS.filter((l) => !l.authOnly || user).map((l) =>
             l.anchor ? (
               <a
                 key={l.label}
@@ -99,7 +100,7 @@ export const Header = () => {
       {open && (
         <div className="border-t border-white/10 bg-black px-6 py-6 md:hidden" data-testid="header-mobile-menu">
           <div className="flex flex-col gap-5">
-            {LINKS.map((l) => (
+            {LINKS.filter((l) => !l.authOnly || user).map((l) => (
               <Link
                 key={l.label}
                 to={l.to}

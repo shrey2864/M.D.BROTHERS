@@ -450,6 +450,24 @@ async def get_diamond(diamond_id: str, user: dict = Depends(require_approved)):
     return d
 
 
+@api_router.get("/dashboard")
+async def get_dashboard(user: dict = Depends(require_approved)):
+    total = await db.diamonds.count_documents({})
+    week_ago = (datetime.now(timezone.utc) - timedelta(days=7)).isoformat()
+    new_goods = await db.diamonds.count_documents({"created_at": {"$gte": week_ago}})
+    featured = await db.diamonds.find({"featured": True}, {"_id": 0}).sort("carat", -1).limit(3).to_list(3)
+    latest = await db.diamonds.find({}, {"_id": 0}).sort("created_at", -1).limit(6).to_list(6)
+    my_enquiries = await db.enquiries.count_documents({"email": user["email"]})
+    return {
+        "total_stones": total,
+        "new_goods": new_goods,
+        "featured_count": await db.diamonds.count_documents({"featured": True}),
+        "my_enquiries": my_enquiries,
+        "featured": featured,
+        "latest": latest,
+    }
+
+
 # ---------------- Admin inventory ----------------
 class DiamondBody(BaseModel):
     sku: str

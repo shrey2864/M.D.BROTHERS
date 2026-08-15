@@ -14,6 +14,7 @@ import Register from "@/pages/Register";
 import Contact from "@/pages/Contact";
 import Admin from "@/pages/Admin";
 import SearchSelect from "@/pages/SearchSelect";
+import Dashboard from "@/pages/Dashboard";
 
 const ScrollManager = () => {
   const { pathname } = useLocation();
@@ -54,6 +55,7 @@ function App() {
               <Route path="/contact" element={<Contact />} />
               <Route path="/admin" element={<Admin />} />
               <Route path="/search" element={<SearchSelect />} />
+              <Route path="/dashboard" element={<Dashboard />} />
             </Routes>
           </main>
           <Footer />
