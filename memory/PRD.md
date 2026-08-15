@@ -51,6 +51,12 @@
 - Our Story rewritten without place names (customer-friendly): "Handpicked At Origin", "The Scaife & The Hand" (0.18 ct to 10 ct+ range mentioned), "Certified, Without Exception", "A Quiet Global Trust"
 - Per-diamond downloads: certificate PDF link, 360° video link, image download — shown on diamond detail page; certificate_url/video_url fields in DiamondBody, admin form, and stock-feed mapping (video/video_url, cert_url/report_url etc.)
 
+### 2026-08-15 (round 8 — bugfix + polish)
+- FIXED Collection crash ("Cannot read properties of undefined (reading 'includes')") — filters state was missing polish/symmetry keys; added to state init + params loop
+- Collection link removed from nav (still reachable via Search results)
+- Hero image replaced with sharp 1600px single-diamond-on-glass photo (/app/frontend/public/hero-diamond.jpg); story ch04 now uses the old brown macro (no duplicate images)
+- Search page: proper faceted shape icons (outer + inner table lines), Colour | Fancy Colour split label
+
 ### 2026-08-15 (round 7 — hero image + exact HK filter spec)
 - Hero image replaced with user-picked diamond photo (/app/frontend/public/hero-diamond.jpg, from user's Google share link)
 - Search page: custom carat From/To inputs + Apply; colors D–N + O-Z + Fancy row (FANCY, PURPLISH, YELLOW, ORANGE, BLUE, PINK, BROWN, GRAY, GREEN — exact HK order); clarity FL, IF, VVS1, VVS2, VS1, VS2, SI1, SI2, SI3, I1, I2, I3; quick toggles 3EX / 2EX / 3VG+ / NO BGM in sticky bottom bar

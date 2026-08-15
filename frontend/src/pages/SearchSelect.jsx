@@ -5,16 +5,43 @@ import { Search, RotateCcw } from "lucide-react";
 import { Overline, MaskedLine } from "@/components/Reveal";
 import { useAuth } from "@/context/AuthContext";
 
-const SHAPE_PATHS = {
-  Round: <circle cx="12" cy="12" r="8" />,
-  Oval: <ellipse cx="12" cy="12" rx="7" ry="9" />,
-  Pear: <path d="M12 3 C16 8 18 11 18 14.5 A6 6 0 1 1 6 14.5 C6 11 8 8 12 3 Z" />,
-  Marquise: <path d="M12 3 C16 7 16 17 12 21 C8 17 8 7 12 3 Z" />,
-  Heart: <path d="M12 20 C5 14 4 9 7.5 6.5 C9.5 5 12 6.5 12 8.5 C12 6.5 14.5 5 16.5 6.5 C20 9 19 14 12 20 Z" />,
-  Cushion: <rect x="5" y="5" width="14" height="14" rx="5" />,
-  Emerald: <path d="M8 4 H16 L20 8 V16 L16 20 H8 L4 16 V8 Z" />,
-  Princess: <rect x="5" y="5" width="14" height="14" />,
-  Radiant: <path d="M7 4 H17 L20 7 V17 L17 20 H7 L4 17 V7 Z" />,
+const SHAPE_ICONS = {
+  Round: [
+    <circle key="a" cx="12" cy="12" r="8.5" />,
+    <circle key="b" cx="12" cy="12" r="4.5" />,
+  ],
+  Oval: [
+    <ellipse key="a" cx="12" cy="12" rx="7" ry="9" />,
+    <ellipse key="b" cx="12" cy="12" rx="3.8" ry="5.4" />,
+  ],
+  Pear: [
+    <path key="a" d="M12 2.5 C16.5 7.5 18.5 11 18.5 14.5 A6.5 6.5 0 1 1 5.5 14.5 C5.5 11 7.5 7.5 12 2.5 Z" />,
+    <path key="b" d="M12 7 C14.6 10 15.8 12.2 15.8 14.5 A3.8 3.8 0 1 1 8.2 14.5 C8.2 12.2 9.4 10 12 7 Z" />,
+  ],
+  Marquise: [
+    <path key="a" d="M12 2.5 C16.5 6.5 16.5 17.5 12 21.5 C7.5 17.5 7.5 6.5 12 2.5 Z" />,
+    <path key="b" d="M12 6.8 C14.4 9.2 14.4 14.8 12 17.2 C9.6 14.8 9.6 9.2 12 6.8 Z" />,
+  ],
+  Heart: [
+    <path key="a" d="M12 20.5 C4.5 14.5 3.5 9 7.3 6.3 C9.5 4.8 12 6.3 12 8.5 C12 6.3 14.5 4.8 16.7 6.3 C20.5 9 19.5 14.5 12 20.5 Z" />,
+    <path key="b" d="M12 16 C8.6 12.9 8.1 10.1 9.9 8.9 C11 8.1 12 9.1 12 10.4 C12 9.1 13 8.1 14.1 8.9 C15.9 10.1 15.4 12.9 12 16 Z" />,
+  ],
+  Cushion: [
+    <rect key="a" x="4.5" y="4.5" width="15" height="15" rx="5.5" />,
+    <rect key="b" x="8.3" y="8.3" width="7.4" height="7.4" rx="2.4" />,
+  ],
+  Emerald: [
+    <path key="a" d="M8 3.5 H16 L20.5 8 V16 L16 20.5 H8 L3.5 16 V8 Z" />,
+    <rect key="b" x="8.3" y="8.3" width="7.4" height="7.4" />,
+  ],
+  Princess: [
+    <rect key="a" x="4.5" y="4.5" width="15" height="15" />,
+    <rect key="b" x="8.3" y="8.3" width="7.4" height="7.4" />,
+  ],
+  Radiant: [
+    <path key="a" d="M7 3.5 H17 L20.5 7 V17 L17 20.5 H7 L3.5 17 V7 Z" />,
+    <rect key="b" x="8.3" y="8.3" width="7.4" height="7.4" />,
+  ],
 };
 
 const CARAT_PRESETS = [
@@ -64,9 +91,9 @@ const QUICK_TOGGLES = [
 ];
 
 const ShapeIcon = ({ shape, active }) => (
-  <svg viewBox="0 0 24 24" className={`h-8 w-8 ${active ? "text-black" : "text-zinc-400"}`}
-    fill="none" stroke="currentColor" strokeWidth="1.2" aria-hidden="true">
-    {SHAPE_PATHS[shape]}
+  <svg viewBox="0 0 24 24" className={`h-9 w-9 ${active ? "text-black" : "text-zinc-400"}`}
+    fill="none" stroke="currentColor" strokeWidth="1.1" aria-hidden="true">
+    {SHAPE_ICONS[shape]}
   </svg>
 );
 
@@ -193,7 +220,7 @@ export default function SearchSelect() {
       <div className="mt-14" data-testid="search-shapes">
         <p className="font-mono text-[11px] uppercase tracking-[0.3em] text-gold">Shapes</p>
         <div className="mt-5 flex flex-wrap gap-3">
-          {Object.keys(SHAPE_PATHS).map((s) => {
+          {Object.keys(SHAPE_ICONS).map((s) => {
             const active = shapes.includes(s);
             return (
               <button key={s} onClick={() => toggleShape(s)} data-testid={`search-shape-${s.toLowerCase()}`}
@@ -244,9 +271,13 @@ export default function SearchSelect() {
         </div>
       </div>
 
-      {/* Color: white D-N + O-Z, then fancy */}
+      {/* Color: white D-N + O-Z | Fancy colour */}
       <div className="mt-12" data-testid="search-group-color">
-        <p className="font-mono text-[11px] uppercase tracking-[0.3em] text-gold">Color</p>
+        <p className="font-mono text-[11px] uppercase tracking-[0.3em]">
+          <span className="text-gold">Colour</span>
+          <span className="mx-3 text-zinc-600">|</span>
+          <span className="text-white">Fancy Colour</span>
+        </p>
         <div className="mt-5 flex flex-wrap gap-2">
           {WHITE_COLORS.map((c) => {
             const active = colors.includes(c);
@@ -260,7 +291,7 @@ export default function SearchSelect() {
             );
           })}
         </div>
-        <p className="mt-6 font-mono text-[10px] uppercase tracking-[0.3em] text-zinc-500">Fancy Colour</p>
+        <p className="mt-6 font-mono text-[10px] uppercase tracking-[0.3em] text-zinc-500">Fancy</p>
         <div className="mt-3 flex flex-wrap gap-2">
           {FANCY_COLORS.map((f) => {
             const active = colors.includes(f.value);

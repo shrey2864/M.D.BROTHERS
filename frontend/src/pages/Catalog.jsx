@@ -28,7 +28,8 @@ export default function Catalog() {
   const initArr = (k) => searchParams.get(k)?.split(",").filter(Boolean) || [];
   const [filters, setFilters] = useState({
     shape: initArr("shape"), color: initArr("color"), clarity: initArr("clarity"),
-    cut: initArr("cut"), fluorescence: initArr("fluorescence"), lab: initArr("lab"),
+    cut: initArr("cut"), polish: initArr("polish"), symmetry: initArr("symmetry"),
+    fluorescence: initArr("fluorescence"), lab: initArr("lab"),
   });
   const [carat, setCarat] = useState([
     parseFloat(searchParams.get("min_carat")) || 0.18,
@@ -57,7 +58,7 @@ export default function Catalog() {
       max_carat: carat[1],
       ...(q && { q }),
     };
-    ["shape", "color", "clarity", "cut", "fluorescence", "lab"].forEach((k) => {
+    ["shape", "color", "clarity", "cut", "polish", "symmetry", "fluorescence", "lab"].forEach((k) => {
       if (filters[k].length) params[k] = filters[k].join(",");
     });
     const t = setTimeout(() => {
