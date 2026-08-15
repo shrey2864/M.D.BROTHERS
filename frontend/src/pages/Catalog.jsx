@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import { api } from "@/lib/api";
+import { useAuth } from "@/context/AuthContext";
 import { DiamondCard } from "@/components/DiamondCard";
 import { Overline, MaskedLine, Reveal } from "@/components/Reveal";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
@@ -16,6 +18,8 @@ const GROUPS = [
 ];
 
 export default function Catalog() {
+  const { user } = useAuth();
+  const canView = !!user && (user.role === "admin" || user.status === "approved");
   const [filters, setFilters] = useState({ shape: [], color: [], clarity: [], cut: [] });
   const [carat, setCarat] = useState([0.18, 10]);
   const [sort, setSort] = useState("featured");
@@ -30,6 +34,10 @@ export default function Catalog() {
     }));
 
   useEffect(() => {
+    if (!canView) {
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     const params = {
       sort,
@@ -47,7 +55,43 @@ export default function Catalog() {
         .finally(() => setLoading(false));
     }, 250);
     return () => clearTimeout(t);
-  }, [filters, carat, sort, q]);
+  }, [filters, carat, sort, q, canView]);
+
+  if (user === null)
+    return (
+      <div className="px-6 py-40 font-mono text-xs uppercase tracking-[0.3em] text-zinc-600">Loading…</div>
+    );
+
+  if (!user || !canView)
+    return (
+      <div className="mx-auto max-w-[1440px] px-6 pb-32 pt-40" data-testid="catalog-gate">
+        <Overline>{!user ? "Members Only" : "Approval Pending"}</Overline>
+        <h1 className="mt-4 max-w-2xl font-serif text-5xl font-light leading-tight text-white">
+          {!user ? (
+            <>The collection is <span className="italic text-gold">private.</span></>
+          ) : (
+            <>Your account is <span className="italic text-gold">under review.</span></>
+          )}
+        </h1>
+        <p className="mt-6 max-w-lg text-sm leading-relaxed text-zinc-400">
+          {!user
+            ? "Our live inventory and pricing are available exclusively to verified trade clients. Register with your company and KYC details — access is approved personally by our team."
+            : "Thank you for registering. Our team is verifying your company and KYC details. Once approved, the full collection and live pricing will unlock here."}
+        </p>
+        {!user && (
+          <div className="mt-10 flex flex-wrap gap-4">
+            <Link to="/register" data-testid="gate-register-button"
+              className="bg-gold px-8 py-4 font-mono text-[11px] uppercase tracking-[0.25em] text-black transition-colors hover:bg-gold-light active:scale-95">
+              Register for Access
+            </Link>
+            <Link to="/login" data-testid="gate-login-button"
+              className="border border-white/20 px-8 py-4 font-mono text-[11px] uppercase tracking-[0.25em] text-white transition-colors hover:border-gold hover:text-gold active:scale-95">
+              Sign In
+            </Link>
+          </div>
+        )}
+      </div>
+    );
 
   return (
     <div className="mx-auto max-w-[1440px] px-6 pb-32 pt-32" data-testid="catalog-page">

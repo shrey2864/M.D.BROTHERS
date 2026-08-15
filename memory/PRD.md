@@ -40,6 +40,13 @@
 - Stock Feed API sync (admin /admin): save feed URL + optional API key, "Sync Now" pulls JSON or CSV feed, flexible field mapping (sku/stock_id, carat/weight, price/total, lab/cert…), upserts by SKU, reports added/updated/skipped. Endpoints: GET/POST /api/stock-feed, POST /api/stock-feed/sync (admin-only)
 - Sample inventory reseeded: 36 stones, SKU prefix MDB-*, carats 0.18–10
 
+### 2026-08-15 (round 3 — private collection + KYC approval)
+- Craftsman/worker photos removed from Our Story per user feedback (back to diamond imagery)
+- Collection is now MEMBERS ONLY: /api/diamonds + /api/diamonds/{id} require approved login (401 anonymous, 403 pending); Catalog, DiamondDetail and Home featured section show gate/pending panels for non-approved visitors
+- Registration now requires: full name, company, KYC/legal name, mobile, email, password → account created as "pending"; success screen explains manual approval
+- Admin buyer approvals: GET /api/admin/users, POST /api/admin/users/{id}/status (approved/rejected/pending); /admin page has "Buyer approvals" table with KYC details and Approve/Reject buttons
+- Demo buyer (demo@buyer.com) auto-marked approved by seed
+
 ## Backlog
 - P0: User to share real WhatsApp number; user to paste their real stock feed API link in /admin (or send CSV/photos for bulk import)
 - P1: Photo upload for diamonds (object storage) instead of URL paste; admin UI to view enquiries; logo upload

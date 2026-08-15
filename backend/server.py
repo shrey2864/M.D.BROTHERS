@@ -167,7 +167,16 @@ def set_auth_cookies(response: Response, user_id: str, email: str):
 
 
 def public_user(user: dict) -> dict:
-    return {"user_id": user["user_id"], "email": user["email"], "name": user["name"], "role": user.get("role", "buyer"), "company": user.get("company")}
+    return {
+        "user_id": user["user_id"],
+        "email": user["email"],
+        "name": user["name"],
+        "role": user.get("role", "buyer"),
+        "company": user.get("company"),
+        "kyc_name": user.get("kyc_name"),
+        "mobile": user.get("mobile"),
+        "status": user.get("status", "approved" if user.get("role") == "admin" else "pending"),
+    }
 
 
 async def get_current_user(request: Request) -> dict:
@@ -199,11 +208,19 @@ async def get_optional_user(request: Request) -> Optional[dict]:
         return None
 
 
+async def require_approved(user: dict = Depends(get_current_user)) -> dict:
+    if user.get("role") == "admin" or user.get("status") == "approved":
+        return user
+    raise HTTPException(status_code=403, detail="Account pending approval")
+
+
 class RegisterBody(BaseModel):
     name: str
     email: EmailStr
     password: str
-    company: Optional[str] = None
+    company: str
+    kyc_name: str
+    mobile: str
 
 
 class LoginBody(BaseModel):
@@ -222,9 +239,12 @@ async def register(body: RegisterBody, response: Response):
         "user_id": str(uuid.uuid4()),
         "name": body.name.strip(),
         "email": email,
-        "company": body.company,
+        "company": body.company.strip(),
+        "kyc_name": body.kyc_name.strip(),
+        "mobile": body.mobile.strip(),
         "password_hash": hash_password(body.password),
         "role": "buyer",
+        "status": "pending",
         "created_at": datetime.now(timezone.utc).isoformat(),
     }
     await db.users.insert_one(user)
@@ -331,7 +351,7 @@ def build_seed_diamonds() -> List[dict]:
 
 @api_router.get("/diamonds")
 async def list_diamonds(
-    request: Request,
+    user: dict = Depends(require_approved),
     shape: Optional[str] = None,
     cut: Optional[str] = None,
     color: Optional[str] = None,
@@ -370,22 +390,14 @@ async def list_diamonds(
     cursor = db.diamonds.find(query, {"_id": 0}).sort(sort_map.get(sort, sort_map["featured"])).limit(limit)
     items = await cursor.to_list(limit)
     total = await db.diamonds.count_documents(query)
-
-    user = await get_optional_user(request)
-    if not user:
-        for d in items:
-            d.pop("price", None)
     return {"items": items, "total": total}
 
 
 @api_router.get("/diamonds/{diamond_id}")
-async def get_diamond(diamond_id: str, request: Request):
+async def get_diamond(diamond_id: str, user: dict = Depends(require_approved)):
     d = await db.diamonds.find_one({"diamond_id": diamond_id}, {"_id": 0})
     if not d:
         raise HTTPException(status_code=404, detail="Diamond not found")
-    user = await get_optional_user(request)
-    if not user:
-        d.pop("price", None)
     return d
 
 
@@ -410,6 +422,26 @@ async def require_admin(user: dict = Depends(get_current_user)) -> dict:
     if user.get("role") != "admin":
         raise HTTPException(status_code=403, detail="Admin only")
     return user
+
+
+class UserStatusBody(BaseModel):
+    status: str
+
+
+@api_router.get("/admin/users")
+async def admin_list_users(user: dict = Depends(require_admin)):
+    users = await db.users.find({"role": "buyer"}, {"_id": 0, "password_hash": 0}).sort("created_at", -1).to_list(500)
+    return {"items": users, "total": len(users)}
+
+
+@api_router.post("/admin/users/{user_id}/status")
+async def admin_set_user_status(user_id: str, body: UserStatusBody, user: dict = Depends(require_admin)):
+    if body.status not in ("approved", "rejected", "pending"):
+        raise HTTPException(status_code=400, detail="Invalid status")
+    result = await db.users.update_one({"user_id": user_id}, {"$set": {"status": body.status}})
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="User not found")
+    return {"status": body.status}
 
 
 @api_router.post("/diamonds")
@@ -635,14 +667,21 @@ async def seed_admin():
 
 async def seed_demo_buyer():
     email = "demo@buyer.com"
-    if not await db.users.find_one({"email": email}):
+    existing = await db.users.find_one({"email": email})
+    if existing:
+        if existing.get("status") != "approved":
+            await db.users.update_one({"email": email}, {"$set": {"status": "approved"}})
+    else:
         await db.users.insert_one({
             "user_id": str(uuid.uuid4()),
             "email": email,
             "password_hash": hash_password("Demo@1234"),
             "name": "Demo Buyer",
             "company": "Demo Jewels BV",
+            "kyc_name": "Demo Jewels BV",
+            "mobile": "+91 90000 00000",
             "role": "buyer",
+            "status": "approved",
             "created_at": datetime.now(timezone.utc).isoformat(),
         })
 

@@ -31,13 +31,28 @@ export default function Admin() {
   const [feed, setFeed] = useState({ url: "", api_key: "" });
   const [lastSync, setLastSync] = useState(null);
   const [syncing, setSyncing] = useState(false);
+  const [buyers, setBuyers] = useState([]);
 
   const load = () =>
     api.get("/diamonds", { params: { limit: 200 } }).then((r) => setDiamonds(r.data.items)).catch(() => {});
 
+  const loadBuyers = () =>
+    api.get("/admin/users").then((r) => setBuyers(r.data.items)).catch(() => {});
+
+  const setBuyerStatus = async (b, status) => {
+    try {
+      await api.post(`/admin/users/${b.user_id}/status`, { status });
+      toast.success(`${b.name} ${status}`);
+      loadBuyers();
+    } catch (err) {
+      toast.error(formatApiError(err.response?.data?.detail));
+    }
+  };
+
   useEffect(() => {
     if (user && user.role === "admin") {
       load();
+      loadBuyers();
       api.get("/stock-feed").then((r) => {
         setFeed((f) => ({ ...f, url: r.data.url || "" }));
         setLastSync(r.data.last_sync || null);
@@ -229,6 +244,56 @@ export default function Admin() {
             ))}
           </tbody>
         </table>
+      </div>
+
+      <div className="mt-24">
+        <Overline>Trade Client Applications</Overline>
+        <h2 className="mt-4 font-serif text-3xl font-light text-white">Buyer <span className="italic text-gold">approvals.</span></h2>
+        <p className="mt-3 text-sm text-zinc-500">Review KYC details and approve access to the collection and live pricing.</p>
+        <div className="mt-8 overflow-x-auto border border-white/10" data-testid="admin-buyers-table">
+          <table className="w-full text-left text-sm">
+            <thead>
+              <tr className="border-b border-white/10 font-mono text-[10px] uppercase tracking-[0.25em] text-zinc-500">
+                <th className="px-5 py-4">Name</th><th className="px-5 py-4">Company</th><th className="px-5 py-4">KYC Name</th>
+                <th className="px-5 py-4">Mobile</th><th className="px-5 py-4">Email</th><th className="px-5 py-4">Status</th>
+                <th className="px-5 py-4 text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {buyers.map((b) => (
+                <tr key={b.user_id} className="border-b border-white/5 text-zinc-300" data-testid={`buyer-row-${b.email}`}>
+                  <td className="px-5 py-4">{b.name}</td>
+                  <td className="px-5 py-4">{b.company || "—"}</td>
+                  <td className="px-5 py-4">{b.kyc_name || "—"}</td>
+                  <td className="px-5 py-4 font-mono text-xs">{b.mobile || "—"}</td>
+                  <td className="px-5 py-4 font-mono text-xs">{b.email}</td>
+                  <td className="px-5 py-4">
+                    <span className={`px-2 py-1 font-mono text-[10px] uppercase tracking-[0.15em] ${
+                      b.status === "approved" ? "text-emerald-400" : b.status === "rejected" ? "text-red-400" : "text-gold"
+                    }`} data-testid={`buyer-status-${b.email}`}>{b.status || "pending"}</span>
+                  </td>
+                  <td className="px-5 py-4 text-right">
+                    {b.status !== "approved" && (
+                      <button onClick={() => setBuyerStatus(b, "approved")} data-testid={`buyer-approve-${b.email}`}
+                        className="mr-2 border border-emerald-500/50 px-3 py-1 font-mono text-[10px] uppercase tracking-[0.15em] text-emerald-400 transition-colors hover:bg-emerald-500 hover:text-black active:scale-95">
+                        Approve
+                      </button>
+                    )}
+                    {b.status !== "rejected" && (
+                      <button onClick={() => setBuyerStatus(b, "rejected")} data-testid={`buyer-reject-${b.email}`}
+                        className="border border-red-500/40 px-3 py-1 font-mono text-[10px] uppercase tracking-[0.15em] text-red-400 transition-colors hover:bg-red-500 hover:text-black active:scale-95">
+                        Reject
+                      </button>
+                    )}
+                  </td>
+                </tr>
+              ))}
+              {buyers.length === 0 && (
+                <tr><td colSpan={7} className="px-5 py-10 text-center font-mono text-xs uppercase tracking-[0.2em] text-zinc-600" data-testid="buyers-empty">No applications yet</td></tr>
+              )}
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   );

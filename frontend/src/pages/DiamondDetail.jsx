@@ -22,14 +22,47 @@ const SPEC_LABELS = [
 export default function DiamondDetail() {
   const { id } = useParams();
   const { user } = useAuth();
+  const canView = !!user && (user.role === "admin" || user.status === "approved");
   const [diamond, setDiamond] = useState(null);
   const [notFound, setNotFound] = useState(false);
 
   useEffect(() => {
+    if (!canView) return;
     api.get(`/diamonds/${id}`)
       .then((r) => setDiamond(r.data))
       .catch(() => setNotFound(true));
-  }, [id]);
+  }, [id, canView]);
+
+  if (user !== null && !canView)
+    return (
+      <div className="mx-auto max-w-[1440px] px-6 pb-32 pt-40" data-testid="diamond-gate">
+        <Overline>{!user ? "Members Only" : "Approval Pending"}</Overline>
+        <h1 className="mt-4 max-w-2xl font-serif text-5xl font-light leading-tight text-white">
+          {!user ? (
+            <>This stone is <span className="italic text-gold">members only.</span></>
+          ) : (
+            <>Your account is <span className="italic text-gold">under review.</span></>
+          )}
+        </h1>
+        <p className="mt-6 max-w-lg text-sm leading-relaxed text-zinc-400">
+          {!user
+            ? "Register with your company and KYC details to view our stones and live pricing — access is approved personally by our team."
+            : "Once our team approves your account, this stone and its pricing will unlock here."}
+        </p>
+        {!user && (
+          <div className="mt-10 flex flex-wrap gap-4">
+            <Link to="/register" data-testid="diamond-gate-register-button"
+              className="bg-gold px-8 py-4 font-mono text-[11px] uppercase tracking-[0.25em] text-black transition-colors hover:bg-gold-light active:scale-95">
+              Register for Access
+            </Link>
+            <Link to="/login" data-testid="diamond-gate-login-button"
+              className="border border-white/20 px-8 py-4 font-mono text-[11px] uppercase tracking-[0.25em] text-white transition-colors hover:border-gold hover:text-gold active:scale-95">
+              Sign In
+            </Link>
+          </div>
+        )}
+      </div>
+    );
 
   if (notFound)
     return (

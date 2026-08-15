@@ -9,9 +9,9 @@ import { DiamondCard } from "@/components/DiamondCard";
 
 const HERO_IMG = "https://images.unsplash.com/photo-1702149001693-67ca09997ecc?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NDQ2NDF8MHwxfHNlYXJjaHw0fHxkaWFtb25kJTIwZ2Vtc3RvbmUlMjBjbG9zZSUyMHVwfGVufDB8fHx8MTc4NjYzODA0MXww&ixlib=rb-4.1.0&q=85&w=1400";
 const IMG_1 = "https://images.unsplash.com/photo-1638517747421-a1eb8b4c9828?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjY2NzV8MHwxfHNlYXJjaHw0fHxkaWFtb25kJTIwY3V0dGluZyUyMHBvbGlzaGluZ3xlbnwwfHx8fDE3ODY2MzgwNDF8MA&ixlib=rb-4.1.0&q=85&w=1000";
-const IMG_2 = "https://images.unsplash.com/photo-1781617783301-554c857fc7ea?fm=jpg&q=80&w=1000&auto=format&fit=crop";
+const IMG_2 = "https://images.unsplash.com/photo-1592136184798-ca0d8e17643a?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjY2NzV8MHwxfHNlYXJjaHwyfHxkaWFtb25kJTIwY3V0dGluZyUyMHBvbGlzaGluZ3xlbnwwfHx8fDE3ODY2MzgwNDF8MA&ixlib=rb-4.1.0&q=85&w=1000";
 const IMG_3 = "https://images.unsplash.com/photo-1599707367072-cd6ada2bc375?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NDQ2NDF8MHwxfHNlYXJjaHwxfHxkaWFtb25kJTIwZ2Vtc3RvbmUlMjBjbG9zZSUyMHVwfGVufDB8fHx8MTc4NjYzODA0MXww&ixlib=rb-4.1.0&q=85&w=1000";
-const IMG_4 = "https://images.unsplash.com/photo-1762712393685-fbe773b97605?fm=jpg&q=80&w=1000&auto=format&fit=crop";
+const IMG_4 = HERO_IMG;
 
 const CHAPTERS = [
   { n: "01", title: "Sourced From Antwerp & Dubai", img: IMG_1, text: "Our rough is hand-selected on the trading floors of Antwerp and Dubai, moving only through Kimberley Process certified channels. We trace origin before we ever touch the wheel — because brilliance without integrity is just glass." },
@@ -33,11 +33,12 @@ export default function Home() {
   const imgY = useTransform(scrollYProgress, [0, 1], [0, 140]);
   const imgScale = useTransform(scrollYProgress, [0, 1], [1, 1.15]);
   const [featured, setFeatured] = useState([]);
+  const [locked, setLocked] = useState(false);
 
   useEffect(() => {
     api.get("/diamonds", { params: { sort: "featured", limit: 4 } })
       .then((r) => setFeatured(r.data.items))
-      .catch(() => {});
+      .catch(() => setLocked(true));
   }, []);
 
   return (
@@ -153,11 +154,25 @@ export default function Home() {
               <ArrowRight className="h-4 w-4 transition-transform duration-300 group-hover:translate-x-1" strokeWidth={1.5} />
             </Link>
           </div>
-          <div className="mt-16 grid gap-4 sm:grid-cols-2 lg:grid-cols-4" data-testid="featured-grid">
-            {featured.map((d, i) => (
-              <DiamondCard key={d.diamond_id} diamond={d} index={i} />
-            ))}
-          </div>
+          {locked ? (
+            <div className="mt-16 border border-gold/30 bg-[#0A0A0A] p-14" data-testid="featured-locked">
+              <p className="font-serif text-3xl font-light italic text-gold">The collection is members only.</p>
+              <p className="mt-4 max-w-lg text-sm leading-relaxed text-zinc-400">
+                Register with your company and KYC details — once our team
+                approves your account, the full inventory and live pricing unlock.
+              </p>
+              <Link to="/register" data-testid="featured-register-button"
+                className="mt-8 inline-block bg-gold px-8 py-4 font-mono text-[11px] uppercase tracking-[0.25em] text-black transition-colors hover:bg-gold-light active:scale-95">
+                Register for Access
+              </Link>
+            </div>
+          ) : (
+            <div className="mt-16 grid gap-4 sm:grid-cols-2 lg:grid-cols-4" data-testid="featured-grid">
+              {featured.map((d, i) => (
+                <DiamondCard key={d.diamond_id} diamond={d} index={i} />
+              ))}
+            </div>
+          )}
         </div>
       </section>
 
