@@ -1,9 +1,10 @@
 import { Overline, MaskedLine, Reveal } from "@/components/Reveal";
 import { EnquiryForm } from "@/components/EnquiryForm";
-import { MapPin, Mail, Phone } from "lucide-react";
+import { MapPin, Mail, Phone, Factory } from "lucide-react";
 
 const INFO = [
-  { icon: MapPin, label: "Atelier", value: "Surat Diamond Bourse, Surat, Gujarat, India" },
+  { icon: MapPin, label: "Head Office — Mumbai", value: "Bharat Diamond Bourse, Bandra Kurla Complex, Mumbai" },
+  { icon: Factory, label: "Manufacturing Unit — Surat", value: "Mahidharpura, Surat, Gujarat" },
   { icon: Mail, label: "Email", value: "shreydoshi16@gmail.com" },
   { icon: Phone, label: "Phone", value: "+91 261 000 0000" },
 ];
@@ -31,7 +32,7 @@ export default function Contact() {
                 <Icon className="mt-1 h-4 w-4 text-gold" strokeWidth={1.5} />
                 <div>
                   <p className="font-mono text-[10px] uppercase tracking-[0.3em] text-zinc-500">{label}</p>
-                  <p className="mt-2 text-sm text-white" data-testid={`contact-${label.toLowerCase()}`}>{value}</p>
+                  <p className="mt-2 text-sm text-white" data-testid={`contact-${label.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`}>{value}</p>
                 </div>
               </Reveal>
             ))}

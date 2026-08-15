@@ -33,7 +33,14 @@
 - WhatsApp tap-to-chat button on every diamond (detail page + catalog cards), pre-filled message with SKU/specs
 - Admin Inventory Manager at /admin: add/edit/delete diamonds, feature-on-homepage toggle, admin-only API (POST/PUT/DELETE /api/diamonds)
 
+### 2026-08-15 (round 2 — addresses, real figures, story images, stock feed)
+- Addresses updated: Head Office — Bharat Diamond Bourse, BKC, Mumbai; Manufacturing Unit — Mahidharpura, Surat (Footer + Contact page)
+- Real figures everywhere: manufactures 0.18–10 ct, 1,500+ stones in stock (hero copy, stats strip, catalog carat slider now 0.18–10)
+- Our Story rewritten: Ch01 "Sourced From Antwerp & Dubai", Ch02 "The Scaife & The Hand" (Mahidharpura unit, workers on polishing disc — new workshop craftsman photo), Ch04 references Bharat Diamond Bourse HQ + craftsman-with-loupe photo
+- Stock Feed API sync (admin /admin): save feed URL + optional API key, "Sync Now" pulls JSON or CSV feed, flexible field mapping (sku/stock_id, carat/weight, price/total, lab/cert…), upserts by SKU, reports added/updated/skipped. Endpoints: GET/POST /api/stock-feed, POST /api/stock-feed/sync (admin-only)
+- Sample inventory reseeded: 36 stones, SKU prefix MDB-*, carats 0.18–10
+
 ## Backlog
-- P0: User to share real WhatsApp number (replace placeholder in config.js); user to send real inventory (CSV/photos) for bulk import, or add via /admin
+- P0: User to share real WhatsApp number; user to paste their real stock feed API link in /admin (or send CSV/photos for bulk import)
 - P1: Photo upload for diamonds (object storage) instead of URL paste; admin UI to view enquiries; logo upload
 - P2: Password reset flow; wishlist; diamond comparison; multi-currency; certificate PDF links

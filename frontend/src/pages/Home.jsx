@@ -9,21 +9,22 @@ import { DiamondCard } from "@/components/DiamondCard";
 
 const HERO_IMG = "https://images.unsplash.com/photo-1702149001693-67ca09997ecc?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NDQ2NDF8MHwxfHNlYXJjaHw0fHxkaWFtb25kJTIwZ2Vtc3RvbmUlMjBjbG9zZSUyMHVwfGVufDB8fHx8MTc4NjYzODA0MXww&ixlib=rb-4.1.0&q=85&w=1400";
 const IMG_1 = "https://images.unsplash.com/photo-1638517747421-a1eb8b4c9828?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjY2NzV8MHwxfHNlYXJjaHw0fHxkaWFtb25kJTIwY3V0dGluZyUyMHBvbGlzaGluZ3xlbnwwfHx8fDE3ODY2MzgwNDF8MA&ixlib=rb-4.1.0&q=85&w=1000";
-const IMG_2 = "https://images.unsplash.com/photo-1592136184798-ca0d8e17643a?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjY2NzV8MHwxfHNlYXJjaHwyfHxkaWFtb25kJTIwY3V0dGluZyUyMHBvbGlzaGluZ3xlbnwwfHx8fDE3ODY2MzgwNDF8MA&ixlib=rb-4.1.0&q=85&w=1000";
+const IMG_2 = "https://images.unsplash.com/photo-1781617783301-554c857fc7ea?fm=jpg&q=80&w=1000&auto=format&fit=crop";
 const IMG_3 = "https://images.unsplash.com/photo-1599707367072-cd6ada2bc375?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NDQ2NDF8MHwxfHNlYXJjaHwxfHxkaWFtb25kJTIwZ2Vtc3RvbmUlMjBjbG9zZSUyMHVwfGVufDB8fHx8MTc4NjYzODA0MXww&ixlib=rb-4.1.0&q=85&w=1000";
+const IMG_4 = "https://images.unsplash.com/photo-1762712393685-fbe773b97605?fm=jpg&q=80&w=1000&auto=format&fit=crop";
 
 const CHAPTERS = [
-  { n: "01", title: "Sourcing With Conscience", img: IMG_1, text: "Every rough stone enters our atelier through Kimberley Process certified channels. We trace origin before we ever touch the wheel — because brilliance without integrity is just glass." },
-  { n: "02", title: "The Cut Is The Craft", img: IMG_2, text: "Four generations of Surat master-cutters. Fifty-eight facets measured against light itself. We cut for fire, not for weight — a philosophy that costs us carats and earns us loyalty." },
-  { n: "03", title: "Certified, Without Exception", img: IMG_3, text: "GIA, IGI and HRD certificates accompany every stone above 0.30 carats. What we say a diamond is, the world's strictest laboratories confirm in writing." },
-  { n: "04", title: "A Quiet Global Trust", img: HERO_IMG, text: "From Antwerp to Hong Kong, maisons and retailers build their collections on our consistency. No noise, no shortcuts — only stones that arrive exactly as promised." },
+  { n: "01", title: "Sourced From Antwerp & Dubai", img: IMG_1, text: "Our rough is hand-selected on the trading floors of Antwerp and Dubai, moving only through Kimberley Process certified channels. We trace origin before we ever touch the wheel — because brilliance without integrity is just glass." },
+  { n: "02", title: "The Scaife & The Hand", img: IMG_2, text: "Inside our Mahidharpura manufacturing unit in Surat, generations of master-cutters work the polishing disc — the scaife — stone by stone. We cut for fire, not for weight: a philosophy that costs us carats and earns us loyalty." },
+  { n: "03", title: "Certified, Without Exception", img: IMG_3, text: "GIA, IGI and HRD certificates accompany our stones. What we say a diamond is, the world's strictest laboratories confirm in writing." },
+  { n: "04", title: "A Quiet Global Trust", img: IMG_4, text: "From our head office at Bharat Diamond Bourse, Mumbai to maisons across 50+ countries — buyers build their collections on our consistency. No noise, no shortcuts, only stones that arrive exactly as promised." },
 ];
 
 const STATS = [
   ["35+", "Years of Craft"],
+  ["1,500+", "Stones In Stock"],
+  ["0.18–10", "Carat Range We Cut"],
   ["50+", "Export Countries"],
-  ["100K+", "Carats Per Year"],
-  ["100%", "Certified Natural"],
 ];
 
 export default function Home() {
@@ -46,7 +47,7 @@ export default function Home() {
         <div className="mx-auto grid max-w-[1440px] items-center gap-12 px-6 pb-24 pt-16 lg:grid-cols-2 lg:pt-24">
           <div className="relative z-10">
             <MaskedLine delay={0.1}>
-              <Overline>Natural Diamonds • Surat → The World</Overline>
+              <Overline>Natural Diamonds • Mumbai → The World</Overline>
             </MaskedLine>
             <h1 className="mt-8 font-serif text-6xl font-light leading-[0.95] tracking-tight text-white sm:text-7xl lg:text-8xl" data-testid="hero-heading">
               <MaskedLine delay={0.25}>Beyond</MaskedLine>
@@ -57,9 +58,9 @@ export default function Home() {
             </h1>
             <Reveal delay={0.8} className="mt-10 max-w-md">
               <p className="text-base leading-relaxed text-zinc-400">
-                Manufacturers of exceptional natural diamonds for over three
-                decades. Browse our live collection — every stone certified,
-                every facet intentional.
+                Manufacturers of exceptional natural diamonds — from 0.18 to
+                10 carats, with over 1,500 certified stones in live inventory.
+                Cut in Surat, traded from Mumbai, trusted worldwide.
               </p>
             </Reveal>
             <Reveal delay={1} className="mt-12 flex flex-wrap items-center gap-5">
@@ -88,7 +89,7 @@ export default function Home() {
               />
             </motion.div>
             <div className="absolute -bottom-6 -left-6 bg-gold px-6 py-4">
-              <p className="font-mono text-[10px] uppercase tracking-[0.3em] text-black">Est. 1989 — Surat, India</p>
+              <p className="font-mono text-[10px] uppercase tracking-[0.3em] text-black">Bharat Diamond Bourse, Mumbai • Mahidharpura, Surat</p>
             </div>
           </motion.div>
         </div>

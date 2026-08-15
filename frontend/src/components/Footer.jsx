@@ -29,7 +29,8 @@ export const Footer = () => (
       <div>
         <p className="font-mono text-[11px] uppercase tracking-[0.3em] text-gold">Atelier</p>
         <div className="mt-5 flex flex-col gap-3 text-sm text-zinc-400">
-          <span>Surat Diamond Bourse, Surat, Gujarat, India</span>
+          <span><span className="text-zinc-500">Head Office:</span> Bharat Diamond Bourse, Bandra Kurla Complex, Mumbai</span>
+          <span><span className="text-zinc-500">Manufacturing Unit:</span> Mahidharpura, Surat, Gujarat</span>
           <span data-testid="footer-email">shreydoshi16@gmail.com</span>
           <span>+91 261 000 0000</span>
         </div>

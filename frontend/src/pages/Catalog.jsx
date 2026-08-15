@@ -17,7 +17,7 @@ const GROUPS = [
 
 export default function Catalog() {
   const [filters, setFilters] = useState({ shape: [], color: [], clarity: [], cut: [] });
-  const [carat, setCarat] = useState([0.3, 5]);
+  const [carat, setCarat] = useState([0.18, 10]);
   const [sort, setSort] = useState("featured");
   const [q, setQ] = useState("");
   const [data, setData] = useState({ items: [], total: 0 });
@@ -107,7 +107,7 @@ export default function Catalog() {
               </AccordionTrigger>
               <AccordionContent>
                 <div className="px-1 pt-2">
-                  <Slider min={0.3} max={5} step={0.05} value={carat} onValueChange={setCarat} data-testid="filter-carat-slider" />
+                  <Slider min={0.18} max={10} step={0.01} value={carat} onValueChange={setCarat} data-testid="filter-carat-slider" />
                   <div className="mt-3 flex justify-between font-mono text-[10px] tracking-[0.2em] text-zinc-500">
                     <span data-testid="carat-min-label">{carat[0].toFixed(2)} CT</span>
                     <span data-testid="carat-max-label">{carat[1].toFixed(2)} CT</span>

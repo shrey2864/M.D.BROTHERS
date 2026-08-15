@@ -6,6 +6,8 @@ load_dotenv(ROOT_DIR / '.env')
 
 import os
 import re
+import csv
+import io
 import time
 import uuid
 import random
@@ -301,14 +303,14 @@ def build_seed_diamonds() -> List[dict]:
     diamonds = []
     for i in range(36):
         shape = SHAPES[i % len(SHAPES)]
-        carat = round(rng.uniform(0.30, 5.0), 2)
+        carat = round(rng.uniform(0.18, 10.0), 2)
         cut = rng.choice(CUTS)
         color = rng.choice(COLORS)
         clarity = rng.choice(CLARITIES)
         price = int(round(carat * 3800 * color_f[color] * clarity_f[clarity] * cut_f[cut] * (1 + carat * 0.35), -1))
         diamonds.append({
             "diamond_id": str(uuid.uuid4()),
-            "sku": f"SDE-{1000 + i}",
+            "sku": f"MDB-{1000 + i}",
             "shape": shape,
             "carat": carat,
             "cut": cut,
@@ -321,6 +323,7 @@ def build_seed_diamonds() -> List[dict]:
             "price": max(price, 450),
             "image": DIAMOND_IMAGES[i % len(DIAMOND_IMAGES)],
             "featured": i < 4,
+            "source": "sample",
             "created_at": datetime.now(timezone.utc).isoformat(),
         })
     return diamonds
@@ -439,6 +442,120 @@ async def delete_diamond(diamond_id: str, user: dict = Depends(require_admin)):
     if result.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Diamond not found")
     return {"status": "deleted"}
+
+
+# ---------------- Stock feed sync ----------------
+class StockFeedBody(BaseModel):
+    url: str
+    api_key: Optional[str] = None
+
+
+@api_router.get("/stock-feed")
+async def get_stock_feed(user: dict = Depends(require_admin)):
+    s = await db.settings.find_one({"key": "stock_feed"}, {"_id": 0, "api_key": 0})
+    return s or {"url": None, "last_sync": None}
+
+
+@api_router.post("/stock-feed")
+async def save_stock_feed(body: StockFeedBody, user: dict = Depends(require_admin)):
+    await db.settings.update_one(
+        {"key": "stock_feed"},
+        {"$set": {"key": "stock_feed", "url": body.url, "api_key": body.api_key}},
+        upsert=True,
+    )
+    return {"status": "saved"}
+
+
+def _pick(rec: dict, *keys):
+    norm = {str(k).lower().replace(" ", "_").replace("-", "_"): v for k, v in rec.items()}
+    for k in keys:
+        v = norm.get(k)
+        if v not in (None, "", "-"):
+            return v
+    return None
+
+
+def _to_float(v):
+    try:
+        return float(str(v).replace(",", "").replace("$", "").strip())
+    except (ValueError, TypeError, AttributeError):
+        return None
+
+
+def map_feed_record(rec: dict) -> Optional[dict]:
+    sku = _pick(rec, "sku", "stock_id", "stock_no", "stock_number", "stock", "id", "ref", "reference", "packet_no", "stone_id")
+    shape = _pick(rec, "shape", "shape_name")
+    carat = _to_float(_pick(rec, "carat", "carats", "weight", "cts", "size", "carat_weight"))
+    if not sku or not shape or carat is None:
+        return None
+    doc = {
+        "sku": str(sku).strip(),
+        "shape": str(shape).strip().capitalize(),
+        "carat": round(carat, 2),
+        "cut": str(_pick(rec, "cut", "cut_grade") or "Excellent").strip().title(),
+        "color": str(_pick(rec, "color", "colour", "col") or "G").strip().upper(),
+        "clarity": str(_pick(rec, "clarity", "clar") or "VS1").strip().upper(),
+        "polish": str(_pick(rec, "polish", "pol") or "Excellent").strip().title(),
+        "symmetry": str(_pick(rec, "symmetry", "sym") or "Excellent").strip().title(),
+        "fluorescence": str(_pick(rec, "fluorescence", "fluor", "fluo") or "None").strip().title(),
+        "certification": str(_pick(rec, "certification", "certificate", "lab", "cert") or "GIA").strip().upper(),
+        "image": _pick(rec, "image", "image_url", "photo", "picture", "img") or DIAMOND_IMAGES[0],
+        "source": "feed",
+    }
+    price = _to_float(_pick(rec, "price", "price_usd", "total_price", "amount", "value", "total"))
+    if price is not None:
+        doc["price"] = price
+    return doc
+
+
+@api_router.post("/stock-feed/sync")
+async def sync_stock_feed(user: dict = Depends(require_admin)):
+    s = await db.settings.find_one({"key": "stock_feed"}, {"_id": 0})
+    if not s or not s.get("url"):
+        raise HTTPException(status_code=400, detail="Save a feed URL first")
+    headers = {"Authorization": f"Bearer {s['api_key']}"} if s.get("api_key") else {}
+    try:
+        async with httpx.AsyncClient(timeout=60, follow_redirects=True) as c:
+            resp = await c.get(s["url"], headers=headers)
+        resp.raise_for_status()
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Could not fetch feed: {e}")
+
+    records = []
+    text = resp.text.strip()
+    if "json" in resp.headers.get("content-type", "") or text.startswith(("[", "{")):
+        data = resp.json()
+        if isinstance(data, dict):
+            for k in ("items", "data", "diamonds", "results", "stock"):
+                if isinstance(data.get(k), list):
+                    data = data[k]
+                    break
+        if isinstance(data, list):
+            records = data
+    else:
+        records = list(csv.DictReader(io.StringIO(text)))
+    if not records:
+        raise HTTPException(status_code=400, detail="Feed returned no recognizable records (expected a JSON array or CSV)")
+
+    added = updated = skipped = 0
+    for rec in records:
+        doc = map_feed_record(rec)
+        if not doc:
+            skipped += 1
+            continue
+        existing = await db.diamonds.find_one({"sku": doc["sku"]}, {"_id": 1})
+        if existing:
+            await db.diamonds.update_one({"_id": existing["_id"]}, {"$set": doc})
+            updated += 1
+        else:
+            doc["diamond_id"] = str(uuid.uuid4())
+            doc["featured"] = False
+            doc["created_at"] = datetime.now(timezone.utc).isoformat()
+            await db.diamonds.insert_one(doc)
+            added += 1
+    summary = {"added": added, "updated": updated, "skipped": skipped, "at": datetime.now(timezone.utc).isoformat()}
+    await db.settings.update_one({"key": "stock_feed"}, {"$set": {"last_sync": summary}})
+    return summary
 
 
 # ---------------- Enquiries ----------------

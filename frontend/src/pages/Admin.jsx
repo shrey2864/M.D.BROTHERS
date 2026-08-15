@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { toast } from "sonner";
-import { Plus, Pencil, Trash2, X } from "lucide-react";
+import { Plus, Pencil, Trash2, X, RefreshCw } from "lucide-react";
 import { api, formatApiError } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import { Overline } from "@/components/Reveal";
@@ -28,13 +28,46 @@ export default function Admin() {
   const [diamonds, setDiamonds] = useState([]);
   const [form, setForm] = useState(null); // null = closed, {…} = editing/adding
   const [saving, setSaving] = useState(false);
+  const [feed, setFeed] = useState({ url: "", api_key: "" });
+  const [lastSync, setLastSync] = useState(null);
+  const [syncing, setSyncing] = useState(false);
 
   const load = () =>
     api.get("/diamonds", { params: { limit: 200 } }).then((r) => setDiamonds(r.data.items)).catch(() => {});
 
   useEffect(() => {
-    if (user && user.role === "admin") load();
+    if (user && user.role === "admin") {
+      load();
+      api.get("/stock-feed").then((r) => {
+        setFeed((f) => ({ ...f, url: r.data.url || "" }));
+        setLastSync(r.data.last_sync || null);
+      }).catch(() => {});
+    }
   }, [user]);
+
+  const saveFeed = async () => {
+    try {
+      await api.post("/stock-feed", { url: feed.url, api_key: feed.api_key || null });
+      toast.success("Stock feed saved");
+    } catch (err) {
+      toast.error(formatApiError(err.response?.data?.detail));
+    }
+  };
+
+  const syncNow = async () => {
+    setSyncing(true);
+    try {
+      await api.post("/stock-feed", { url: feed.url, api_key: feed.api_key || null });
+      const { data } = await api.post("/stock-feed/sync");
+      setLastSync(data);
+      toast.success(`Sync complete — ${data.added} added, ${data.updated} updated, ${data.skipped} skipped`);
+      load();
+    } catch (err) {
+      toast.error(formatApiError(err.response?.data?.detail));
+    } finally {
+      setSyncing(false);
+    }
+  };
 
   if (user === null) return <div className="px-6 py-40 font-mono text-xs uppercase tracking-[0.3em] text-zinc-600">Loading…</div>;
 
@@ -97,6 +130,39 @@ export default function Admin() {
           className="flex items-center gap-2 bg-gold px-6 py-3 font-mono text-[11px] uppercase tracking-[0.25em] text-black transition-colors hover:bg-gold-light active:scale-95">
           <Plus className="h-4 w-4" strokeWidth={1.5} /> Add Diamond
         </button>
+      </div>
+
+      <div className="mt-12 border border-white/10 bg-[#0A0A0A] p-8" data-testid="stock-feed-card">
+        <Overline>Stock Feed — API Sync</Overline>
+        <p className="mt-3 max-w-2xl text-sm leading-relaxed text-zinc-500">
+          Paste the API link (JSON or CSV) from your stock management system.
+          Each sync adds new stones and updates existing ones by SKU — your
+          whole 1,500+ stone inventory uploads in one click.
+        </p>
+        <div className="mt-6 grid gap-6 md:grid-cols-2">
+          <input placeholder="https://your-stock-system.com/api/stock" value={feed.url}
+            onChange={(e) => setFeed({ ...feed, url: e.target.value })}
+            className="lux-input" data-testid="stock-feed-url-input" />
+          <input placeholder="API key (optional)" value={feed.api_key}
+            onChange={(e) => setFeed({ ...feed, api_key: e.target.value })}
+            className="lux-input" data-testid="stock-feed-key-input" />
+        </div>
+        <div className="mt-6 flex flex-wrap items-center gap-4">
+          <button onClick={saveFeed} data-testid="stock-feed-save-button"
+            className="border border-white/20 px-6 py-3 font-mono text-[11px] uppercase tracking-[0.25em] text-white transition-colors hover:border-gold hover:text-gold active:scale-95">
+            Save Feed
+          </button>
+          <button onClick={syncNow} disabled={syncing || !feed.url} data-testid="stock-feed-sync-button"
+            className="flex items-center gap-2 bg-gold px-6 py-3 font-mono text-[11px] uppercase tracking-[0.25em] text-black transition-colors hover:bg-gold-light active:scale-95 disabled:opacity-50">
+            <RefreshCw className={`h-4 w-4 ${syncing ? "animate-spin" : ""}`} strokeWidth={1.5} />
+            {syncing ? "Syncing…" : "Sync Now"}
+          </button>
+          {lastSync && (
+            <p className="font-mono text-[10px] uppercase tracking-[0.2em] text-zinc-500" data-testid="stock-feed-last-sync">
+              Last sync: {lastSync.added} added • {lastSync.updated} updated • {lastSync.skipped} skipped
+            </p>
+          )}
+        </div>
       </div>
 
       {form && (
