@@ -15,7 +15,7 @@ const IMG_4 = HERO_IMG;
 
 const CHAPTERS = [
   { n: "01", title: "Sourced From Antwerp & Dubai", img: IMG_1, text: "Our rough is hand-selected on the trading floors of Antwerp and Dubai, moving only through Kimberley Process certified channels. We trace origin before we ever touch the wheel — because brilliance without integrity is just glass." },
-  { n: "02", title: "The Scaife & The Hand", img: IMG_2, text: "Inside our Mahidharpura manufacturing unit in Surat, generations of master-cutters work the polishing disc — the scaife — stone by stone. We cut for fire, not for weight: a philosophy that costs us carats and earns us loyalty." },
+  { n: "02", title: "The Scaife & The Hand", img: IMG_2, text: "Inside our Mahidharpura manufacturing unit in Surat, generations of master-cutters work the polishing disc — the scaife — stone by stone, from delicate 0.18 ct melee to 10 ct+ solitaires. We cut for fire, not for weight: a philosophy that costs us carats and earns us loyalty." },
   { n: "03", title: "Certified, Without Exception", img: IMG_3, text: "GIA, IGI and HRD certificates accompany our stones. What we say a diamond is, the world's strictest laboratories confirm in writing." },
   { n: "04", title: "A Quiet Global Trust", img: IMG_4, text: "From our head office at Bharat Diamond Bourse, Mumbai to maisons across 50+ countries — buyers build their collections on our consistency. No noise, no shortcuts, only stones that arrive exactly as promised." },
 ];
