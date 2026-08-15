@@ -1,12 +1,21 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
-import { formatApiError } from "@/lib/api";
+import { formatApiError, api } from "@/lib/api";
 import { Overline } from "@/components/Reveal";
+import { Upload } from "lucide-react";
+
+const BUSINESS_TYPES = [
+  { value: "owner", label: "Owner" },
+  { value: "sales_representative", label: "Sales Representative" },
+  { value: "trader", label: "Trader" },
+  { value: "manufacturer", label: "Manufacturer" },
+];
 
 export default function Register() {
   const { register } = useAuth();
-  const [form, setForm] = useState({ name: "", company: "", kyc_name: "", mobile: "", email: "", password: "" });
+  const [form, setForm] = useState({ name: "", company: "", kyc_name: "", mobile: "", email: "", password: "", business_type: "owner" });
+  const [kycFile, setKycFile] = useState(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [done, setDone] = useState(false);
@@ -15,10 +24,17 @@ export default function Register() {
 
   const submit = async (e) => {
     e.preventDefault();
+    if (!kycFile) {
+      setError("Please attach your KYC document (PDF).");
+      return;
+    }
     setError("");
     setLoading(true);
     try {
       await register(form);
+      const fd = new FormData();
+      fd.append("file", kycFile);
+      await api.post("/users/kyc-document", fd);
       setDone(true);
     } catch (err) {
       setError(formatApiError(err.response?.data?.detail));
@@ -63,6 +79,23 @@ export default function Register() {
               className="lux-input" data-testid="register-company-input" />
             <input required placeholder="KYC / Legal Name (as per documents)" value={form.kyc_name} onChange={set("kyc_name")}
               className="lux-input" data-testid="register-kyc-input" />
+            <label className="block">
+              <span className="font-mono text-[10px] uppercase tracking-[0.25em] text-zinc-500">I am registering as</span>
+              <select value={form.business_type} onChange={set("business_type")} data-testid="register-business-type-select"
+                className="mt-2 w-full border-b border-white/20 bg-transparent py-3 text-sm text-white focus:border-gold focus:outline-none [&>option]:bg-black">
+                {BUSINESS_TYPES.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
+              </select>
+            </label>
+            <label className="block cursor-pointer border border-dashed border-white/20 px-5 py-4 transition-colors hover:border-gold" data-testid="register-kyc-upload">
+              <input type="file" accept=".pdf,application/pdf" className="hidden"
+                onChange={(e) => setKycFile(e.target.files?.[0] || null)} data-testid="register-kyc-file-input" />
+              <span className="flex items-center gap-3 text-sm">
+                <Upload className="h-4 w-4 text-gold" strokeWidth={1.5} />
+                <span className={kycFile ? "text-white" : "text-zinc-600"}>
+                  {kycFile ? kycFile.name : "Attach KYC Document (PDF, max 10 MB)"}
+                </span>
+              </span>
+            </label>
             <input required type="tel" placeholder="Mobile Number" value={form.mobile} onChange={set("mobile")}
               className="lux-input" data-testid="register-mobile-input" />
             <input type="email" required placeholder="Email Address" value={form.email} onChange={set("email")}

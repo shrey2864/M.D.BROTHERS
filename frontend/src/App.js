@@ -13,6 +13,7 @@ import Login from "@/pages/Login";
 import Register from "@/pages/Register";
 import Contact from "@/pages/Contact";
 import Admin from "@/pages/Admin";
+import SearchSelect from "@/pages/SearchSelect";
 
 const ScrollManager = () => {
   const { pathname } = useLocation();
@@ -52,6 +53,7 @@ function App() {
               <Route path="/register" element={<Register />} />
               <Route path="/contact" element={<Contact />} />
               <Route path="/admin" element={<Admin />} />
+              <Route path="/search" element={<SearchSelect />} />
             </Routes>
           </main>
           <Footer />

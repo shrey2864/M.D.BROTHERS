@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { api } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import { DiamondCard } from "@/components/DiamondCard";
@@ -15,13 +15,23 @@ const GROUPS = [
   { key: "color", label: "Color", options: ["D", "E", "F", "G", "H", "I", "J"] },
   { key: "clarity", label: "Clarity", options: ["FL", "IF", "VVS1", "VVS2", "VS1", "VS2", "SI1"] },
   { key: "cut", label: "Cut", options: ["Excellent", "Very Good", "Good"] },
+  { key: "fluorescence", label: "Fluorescence", options: ["None", "Faint", "Medium", "Strong"] },
+  { key: "lab", label: "Lab", options: ["GIA", "IGI", "HRD"] },
 ];
 
 export default function Catalog() {
   const { user } = useAuth();
   const canView = !!user && (user.role === "admin" || user.status === "approved");
-  const [filters, setFilters] = useState({ shape: [], color: [], clarity: [], cut: [] });
-  const [carat, setCarat] = useState([0.18, 10]);
+  const [searchParams] = useSearchParams();
+  const initArr = (k) => searchParams.get(k)?.split(",").filter(Boolean) || [];
+  const [filters, setFilters] = useState({
+    shape: initArr("shape"), color: initArr("color"), clarity: initArr("clarity"),
+    cut: initArr("cut"), fluorescence: initArr("fluorescence"), lab: initArr("lab"),
+  });
+  const [carat, setCarat] = useState([
+    parseFloat(searchParams.get("min_carat")) || 0.18,
+    parseFloat(searchParams.get("max_carat")) || 10,
+  ]);
   const [sort, setSort] = useState("featured");
   const [q, setQ] = useState("");
   const [data, setData] = useState({ items: [], total: 0 });
@@ -45,7 +55,7 @@ export default function Catalog() {
       max_carat: carat[1],
       ...(q && { q }),
     };
-    ["shape", "color", "clarity", "cut"].forEach((k) => {
+    ["shape", "color", "clarity", "cut", "fluorescence", "lab"].forEach((k) => {
       if (filters[k].length) params[k] = filters[k].join(",");
     });
     const t = setTimeout(() => {

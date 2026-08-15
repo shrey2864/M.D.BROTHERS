@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { toast } from "sonner";
 import { Plus, Pencil, Trash2, X, RefreshCw } from "lucide-react";
-import { api, formatApiError } from "@/lib/api";
+import { api, formatApiError, API_BASE } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import { Overline } from "@/components/Reveal";
 
@@ -263,8 +263,9 @@ export default function Admin() {
           <table className="w-full text-left text-sm">
             <thead>
               <tr className="border-b border-white/10 font-mono text-[10px] uppercase tracking-[0.25em] text-zinc-500">
-                <th className="px-5 py-4">Name</th><th className="px-5 py-4">Company</th><th className="px-5 py-4">KYC Name</th>
-                <th className="px-5 py-4">Mobile</th><th className="px-5 py-4">Email</th><th className="px-5 py-4">Status</th>
+                <th className="px-5 py-4">Name</th><th className="px-5 py-4">Type</th><th className="px-5 py-4">Company</th>
+                <th className="px-5 py-4">KYC Name</th><th className="px-5 py-4">Mobile</th><th className="px-5 py-4">Email</th>
+                <th className="px-5 py-4">KYC Doc</th><th className="px-5 py-4">Status</th>
                 <th className="px-5 py-4 text-right">Actions</th>
               </tr>
             </thead>
@@ -272,10 +273,24 @@ export default function Admin() {
               {buyers.map((b) => (
                 <tr key={b.user_id} className="border-b border-white/5 text-zinc-300" data-testid={`buyer-row-${b.email}`}>
                   <td className="px-5 py-4">{b.name}</td>
+                  <td className="px-5 py-4 font-mono text-[10px] uppercase tracking-[0.1em] text-zinc-400">
+                    {{ owner: "Owner", sales_representative: "Sales Rep", trader: "Trader", manufacturer: "Manufacturer" }[b.business_type] || "—"}
+                  </td>
                   <td className="px-5 py-4">{b.company || "—"}</td>
                   <td className="px-5 py-4">{b.kyc_name || "—"}</td>
                   <td className="px-5 py-4 font-mono text-xs">{b.mobile || "—"}</td>
                   <td className="px-5 py-4 font-mono text-xs">{b.email}</td>
+                  <td className="px-5 py-4">
+                    {b.kyc_doc_path ? (
+                      <a href={`${API_BASE}/users/kyc-document/${b.user_id}`} target="_blank" rel="noopener noreferrer"
+                        data-testid={`buyer-kyc-doc-${b.email}`}
+                        className="border border-gold/40 px-2 py-1 font-mono text-[10px] uppercase tracking-[0.15em] text-gold transition-colors hover:bg-gold hover:text-black">
+                        PDF
+                      </a>
+                    ) : (
+                      <span className="font-mono text-[10px] text-zinc-600">—</span>
+                    )}
+                  </td>
                   <td className="px-5 py-4">
                     <span className={`px-2 py-1 font-mono text-[10px] uppercase tracking-[0.15em] ${
                       b.status === "approved" ? "text-emerald-400" : b.status === "rejected" ? "text-red-400" : "text-gold"
@@ -298,7 +313,7 @@ export default function Admin() {
                 </tr>
               ))}
               {buyers.length === 0 && (
-                <tr><td colSpan={7} className="px-5 py-10 text-center font-mono text-xs uppercase tracking-[0.2em] text-zinc-600" data-testid="buyers-empty">No applications yet</td></tr>
+                <tr><td colSpan={9} className="px-5 py-10 text-center font-mono text-xs uppercase tracking-[0.2em] text-zinc-600" data-testid="buyers-empty">No applications yet</td></tr>
               )}
             </tbody>
           </table>

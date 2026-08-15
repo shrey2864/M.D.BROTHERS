@@ -22,7 +22,9 @@ from typing import Optional, List
 import bcrypt
 import jwt
 import httpx
-from fastapi import FastAPI, APIRouter, HTTPException, Request, Response, Depends, Query
+import requests
+import asyncio
+from fastapi import FastAPI, APIRouter, HTTPException, Request, Response, Depends, Query, UploadFile, File
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
 from pydantic import BaseModel, EmailStr
@@ -38,6 +40,41 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(level
 logger = logging.getLogger(__name__)
 
 JWT_ALGORITHM = "HS256"
+
+# ---------------- Object storage (KYC documents) ----------------
+STORAGE_BASE = (os.environ.get("INTEGRATION_PROXY_URL") or "").strip() or "https://integrations.emergentagent.com"
+STORAGE_URL = STORAGE_BASE.rstrip("/") + "/objstore/api/v1/storage"
+EMERGENT_KEY = os.environ.get("EMERGENT_LLM_KEY")
+APP_NAME = "mdbrothers"
+storage_key = None
+
+
+def init_storage(force: bool = False):
+    global storage_key
+    if storage_key and not force:
+        return storage_key
+    resp = requests.post(f"{STORAGE_URL}/init", json={"emergent_key": EMERGENT_KEY}, timeout=30)
+    resp.raise_for_status()
+    storage_key = resp.json()["storage_key"]
+    return storage_key
+
+
+def put_object(path: str, data: bytes, content_type: str) -> dict:
+    key = init_storage()
+    resp = requests.put(
+        f"{STORAGE_URL}/objects/{path}",
+        headers={"X-Storage-Key": key, "Content-Type": content_type},
+        data=data, timeout=120,
+    )
+    resp.raise_for_status()
+    return resp.json()
+
+
+def get_object(path: str):
+    key = init_storage()
+    resp = requests.get(f"{STORAGE_URL}/objects/{path}", headers={"X-Storage-Key": key}, timeout=60)
+    resp.raise_for_status()
+    return resp.content, resp.headers.get("Content-Type", "application/octet-stream")
 
 # ---------------- Email (Emergent managed Resend proxy) ----------------
 EMAIL_BASE_URL = "https://integrations.emergentagent.com"
@@ -175,6 +212,9 @@ def public_user(user: dict) -> dict:
         "company": user.get("company"),
         "kyc_name": user.get("kyc_name"),
         "mobile": user.get("mobile"),
+        "business_type": user.get("business_type"),
+        "kyc_doc_name": user.get("kyc_doc_name"),
+        "has_kyc_doc": bool(user.get("kyc_doc_path")),
         "status": user.get("status", "approved" if user.get("role") == "admin" else "pending"),
     }
 
@@ -221,6 +261,7 @@ class RegisterBody(BaseModel):
     company: str
     kyc_name: str
     mobile: str
+    business_type: str = "owner"
 
 
 class LoginBody(BaseModel):
@@ -242,6 +283,7 @@ async def register(body: RegisterBody, response: Response):
         "company": body.company.strip(),
         "kyc_name": body.kyc_name.strip(),
         "mobile": body.mobile.strip(),
+        "business_type": body.business_type,
         "password_hash": hash_password(body.password),
         "role": "buyer",
         "status": "pending",
@@ -358,6 +400,8 @@ async def list_diamonds(
     clarity: Optional[str] = None,
     min_carat: Optional[float] = None,
     max_carat: Optional[float] = None,
+    fluorescence: Optional[str] = None,
+    lab: Optional[str] = None,
     q: Optional[str] = None,
     sort: str = "featured",
     limit: int = Query(default=60, le=200),
@@ -371,6 +415,10 @@ async def list_diamonds(
         query["color"] = {"$in": color.split(",")}
     if clarity:
         query["clarity"] = {"$in": clarity.split(",")}
+    if fluorescence:
+        query["fluorescence"] = {"$in": fluorescence.split(",")}
+    if lab:
+        query["certification"] = {"$in": lab.split(",")}
     if min_carat is not None or max_carat is not None:
         query["carat"] = {}
         if min_carat is not None:
@@ -435,6 +483,42 @@ class UserStatusBody(BaseModel):
 async def admin_list_users(user: dict = Depends(require_admin)):
     users = await db.users.find({"role": "buyer"}, {"_id": 0, "password_hash": 0}).sort("created_at", -1).to_list(500)
     return {"items": users, "total": len(users)}
+
+
+@api_router.post("/users/kyc-document")
+async def upload_kyc_document(file: UploadFile = File(...), user: dict = Depends(get_current_user)):
+    if file.content_type != "application/pdf" and not (file.filename or "").lower().endswith(".pdf"):
+        raise HTTPException(status_code=400, detail="Only PDF files are accepted")
+    data = await file.read()
+    if len(data) > 10 * 1024 * 1024:
+        raise HTTPException(status_code=400, detail="File must be under 10 MB")
+    path = f"{APP_NAME}/kyc/{user['user_id']}/{uuid.uuid4()}.pdf"
+    try:
+        result = await asyncio.to_thread(put_object, path, data, "application/pdf")
+    except Exception as e:
+        logger.error(f"KYC upload failed: {e}")
+        raise HTTPException(status_code=502, detail="File storage unavailable, try again")
+    await db.users.update_one(
+        {"user_id": user["user_id"]},
+        {"$set": {"kyc_doc_path": result["path"], "kyc_doc_name": file.filename}},
+    )
+    return {"status": "uploaded", "filename": file.filename}
+
+
+@api_router.get("/users/kyc-document/{user_id}")
+async def download_kyc_document(user_id: str, user: dict = Depends(require_admin)):
+    target = await db.users.find_one({"user_id": user_id}, {"_id": 0})
+    if not target or not target.get("kyc_doc_path"):
+        raise HTTPException(status_code=404, detail="No KYC document uploaded")
+    try:
+        data, content_type = await asyncio.to_thread(get_object, target["kyc_doc_path"])
+    except Exception:
+        raise HTTPException(status_code=404, detail="File not found in storage")
+    return Response(
+        content=data,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="KYC-{target.get("kyc_name") or target["name"]}.pdf"'},
+    )
 
 
 @api_router.post("/admin/users/{user_id}/status")
@@ -728,6 +812,11 @@ async def startup():
     if await db.diamonds.count_documents({}) == 0:
         await db.diamonds.insert_many(build_seed_diamonds())
         logger.info("Seeded 36 diamonds")
+    try:
+        await asyncio.to_thread(init_storage)
+        logger.info("Object storage initialized")
+    except Exception as e:
+        logger.error(f"Storage init failed: {e}")
 
 
 @app.on_event("shutdown")

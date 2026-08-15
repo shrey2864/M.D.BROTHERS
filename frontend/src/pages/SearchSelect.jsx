@@ -1,0 +1,175 @@
+import { useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { motion } from "framer-motion";
+import { Search, RotateCcw } from "lucide-react";
+import { Overline, MaskedLine } from "@/components/Reveal";
+
+const SHAPE_PATHS = {
+  Round: <circle cx="12" cy="12" r="8" />,
+  Oval: <ellipse cx="12" cy="12" rx="7" ry="9" />,
+  Pear: <path d="M12 3 C16 8 18 11 18 14.5 A6 6 0 1 1 6 14.5 C6 11 8 8 12 3 Z" />,
+  Marquise: <path d="M12 3 C16 7 16 17 12 21 C8 17 8 7 12 3 Z" />,
+  Heart: <path d="M12 20 C5 14 4 9 7.5 6.5 C9.5 5 12 6.5 12 8.5 C12 6.5 14.5 5 16.5 6.5 C20 9 19 14 12 20 Z" />,
+  Cushion: <rect x="5" y="5" width="14" height="14" rx="5" />,
+  Emerald: <path d="M8 4 H16 L20 8 V16 L16 20 H8 L4 16 V8 Z" />,
+  Princess: <rect x="5" y="5" width="14" height="14" />,
+  Radiant: <path d="M7 4 H17 L20 7 V17 L17 20 H7 L4 17 V7 Z" />,
+};
+
+const CARAT_PRESETS = [
+  { label: "All", range: null },
+  { label: "30s Down", range: [0.18, 0.29] },
+  { label: "30s", range: [0.3, 0.39] },
+  { label: "40s", range: [0.4, 0.49] },
+  { label: "50s - 60s", range: [0.5, 0.69] },
+  { label: "70s - 80s", range: [0.7, 0.89] },
+  { label: "90s", range: [0.9, 0.99] },
+  { label: "1 ct", range: [1.0, 1.49] },
+  { label: "1.5 ct", range: [1.5, 1.99] },
+  { label: "2 ct", range: [2.0, 2.99] },
+  { label: "3 ct - 4 ct", range: [3.0, 4.99] },
+  { label: "5 ct +", range: [5.0, 10] },
+];
+
+const PILL_GROUPS = [
+  { key: "color", label: "Color", options: ["D", "E", "F", "G", "H", "I", "J"] },
+  { key: "clarity", label: "Clarity", options: ["FL", "IF", "VVS1", "VVS2", "VS1", "VS2", "SI1"] },
+  { key: "fluorescence", label: "Fluorescence", options: ["None", "Faint", "Medium", "Strong"] },
+  { key: "lab", label: "Lab", options: ["GIA", "IGI", "HRD"] },
+  { key: "cut", label: "Cut", options: ["Excellent", "Very Good", "Good"] },
+  { key: "polish", label: "Polish", options: ["Excellent", "Very Good"] },
+  { key: "symmetry", label: "Symmetry", options: ["Excellent", "Very Good"] },
+];
+
+const ShapeIcon = ({ shape, active }) => (
+  <svg viewBox="0 0 24 24" className={`h-8 w-8 ${active ? "text-black" : "text-zinc-400"}`}
+    fill="none" stroke="currentColor" strokeWidth="1.2" aria-hidden="true">
+    {SHAPE_PATHS[shape]}
+  </svg>
+);
+
+export default function SearchSelect() {
+  const navigate = useNavigate();
+  const [shapes, setShapes] = useState([]);
+  const [carat, setCarat] = useState(null); // null = All
+  const [pills, setPills] = useState({ color: [], clarity: [], fluorescence: [], lab: [], cut: [], polish: [], symmetry: [] });
+
+  const toggleShape = (s) =>
+    setShapes((prev) => (prev.includes(s) ? prev.filter((x) => x !== s) : [...prev, s]));
+
+  const togglePill = (key, v) =>
+    setPills((p) => ({ ...p, [key]: p[key].includes(v) ? p[key].filter((x) => x !== v) : [...p[key], v] }));
+
+  const reset = () => {
+    setShapes([]);
+    setCarat(null);
+    setPills({ color: [], clarity: [], fluorescence: [], lab: [], cut: [], polish: [], symmetry: [] });
+  };
+
+  const filterCount =
+    shapes.length + (carat ? 1 : 0) + Object.values(pills).reduce((a, b) => a + b.length, 0);
+
+  const search = () => {
+    const params = new URLSearchParams();
+    if (shapes.length) params.set("shape", shapes.join(","));
+    if (carat) {
+      params.set("min_carat", carat[0]);
+      params.set("max_carat", carat[1]);
+    }
+    Object.entries(pills).forEach(([k, v]) => {
+      if (v.length) params.set(k, v.join(","));
+    });
+    navigate(`/collection?${params.toString()}`);
+  };
+
+  return (
+    <div className="mx-auto max-w-[1440px] px-6 pb-40 pt-32" data-testid="search-select-page">
+      <Overline>Diamond Search</Overline>
+      <MaskedLine className="mt-4">
+        <h1 className="font-serif text-5xl font-light text-white sm:text-6xl">
+          Find your <span className="italic text-gold">stone.</span>
+        </h1>
+      </MaskedLine>
+      <p className="mt-4 max-w-lg text-sm text-zinc-500">
+        Select shapes, carat range and the four Cs — we'll show you matching stones from live inventory.
+      </p>
+
+      {/* Shapes */}
+      <div className="mt-14" data-testid="search-shapes">
+        <p className="font-mono text-[11px] uppercase tracking-[0.3em] text-gold">Shapes</p>
+        <div className="mt-5 flex flex-wrap gap-3">
+          {Object.keys(SHAPE_PATHS).map((s) => {
+            const active = shapes.includes(s);
+            return (
+              <button key={s} onClick={() => toggleShape(s)} data-testid={`search-shape-${s.toLowerCase()}`}
+                className={`flex w-[104px] flex-col items-center gap-2 border py-4 transition-all duration-300 active:scale-95 ${
+                  active ? "border-gold bg-gold text-black" : "border-white/10 text-zinc-400 hover:border-gold/50 hover:text-white"
+                }`}>
+                <ShapeIcon shape={s} active={active} />
+                <span className="font-mono text-[10px] uppercase tracking-[0.15em]">{s}</span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Carat presets */}
+      <div className="mt-12" data-testid="search-carat">
+        <p className="font-mono text-[11px] uppercase tracking-[0.3em] text-gold">Carat Range</p>
+        <div className="mt-5 flex flex-wrap gap-2">
+          {CARAT_PRESETS.map((c) => {
+            const active = carat === null ? c.range === null : c.range !== null && carat?.[0] === c.range[0];
+            return (
+              <button key={c.label} onClick={() => setCarat(c.range)} data-testid={`search-carat-${c.label.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`}
+                className={`border px-5 py-2.5 font-mono text-[11px] uppercase tracking-[0.15em] transition-all duration-300 active:scale-95 ${
+                  active ? "border-gold bg-gold text-black" : "border-white/10 text-zinc-400 hover:border-gold/50 hover:text-white"
+                }`}>
+                {c.label}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Pill groups */}
+      {PILL_GROUPS.map((g) => (
+        <div key={g.key} className="mt-12" data-testid={`search-group-${g.key}`}>
+          <p className="font-mono text-[11px] uppercase tracking-[0.3em] text-gold">{g.label}</p>
+          <div className="mt-5 flex flex-wrap gap-2">
+            {g.options.map((o) => {
+              const active = pills[g.key].includes(o);
+              return (
+                <button key={o} onClick={() => togglePill(g.key, o)} data-testid={`search-${g.key}-${o.toLowerCase().replace(/\s/g, "-")}`}
+                  className={`border px-5 py-2.5 font-mono text-[11px] uppercase tracking-[0.15em] transition-all duration-300 active:scale-95 ${
+                    active ? "border-gold bg-gold text-black" : "border-white/10 text-zinc-400 hover:border-gold/50 hover:text-white"
+                  }`}>
+                  {o}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      ))}
+
+      {/* Action bar */}
+      <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
+        className="fixed bottom-0 left-0 right-0 z-40 border-t border-white/10 bg-black/80 backdrop-blur-xl">
+        <div className="mx-auto flex max-w-[1440px] items-center justify-between gap-4 px-6 py-4">
+          <p className="font-mono text-[10px] uppercase tracking-[0.25em] text-zinc-500" data-testid="search-filter-count">
+            {filterCount === 0 ? "No filters selected — shows everything" : `${filterCount} filter${filterCount > 1 ? "s" : ""} selected`}
+          </p>
+          <div className="flex items-center gap-3">
+            <button onClick={reset} data-testid="search-reset-button"
+              className="flex items-center gap-2 border border-white/20 px-5 py-3 font-mono text-[11px] uppercase tracking-[0.2em] text-zinc-300 transition-colors hover:border-gold hover:text-gold active:scale-95">
+              <RotateCcw className="h-3.5 w-3.5" strokeWidth={1.5} /> Reset
+            </button>
+            <button onClick={search} data-testid="search-submit-button"
+              className="flex items-center gap-2 bg-gold px-8 py-3 font-mono text-[11px] uppercase tracking-[0.25em] text-black transition-colors hover:bg-gold-light active:scale-95">
+              <Search className="h-4 w-4" strokeWidth={1.5} /> Search Diamonds
+            </button>
+          </div>
+        </div>
+      </motion.div>
+    </div>
+  );
+}

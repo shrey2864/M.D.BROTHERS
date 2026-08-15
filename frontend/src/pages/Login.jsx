@@ -17,7 +17,7 @@ export default function Login() {
     setLoading(true);
     try {
       await login(form.email, form.password);
-      navigate("/collection");
+      navigate("/search");
     } catch (err) {
       setError(formatApiError(err.response?.data?.detail));
     } finally {

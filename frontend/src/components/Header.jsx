@@ -4,6 +4,7 @@ import { Menu, X, Gem } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 
 const LINKS = [
+  { to: "/search", label: "Search" },
   { to: "/collection", label: "Collection" },
   { to: "/#story", label: "Our Story", anchor: true },
   { to: "/contact", label: "Contact" },

@@ -50,6 +50,13 @@
 ### 2026-08-15 (round 4 — downloads + story wording)
 - Our Story rewritten without place names (customer-friendly): "Handpicked At Origin", "The Scaife & The Hand" (0.18 ct to 10 ct+ range mentioned), "Certified, Without Exception", "A Quiet Global Trust"
 - Per-diamond downloads: certificate PDF link, 360° video link, image download — shown on diamond detail page; certificate_url/video_url fields in DiamondBody, admin form, and stock-feed mapping (video/video_url, cert_url/report_url etc.)
+
+### 2026-08-15 (round 5 — KYC PDF upload, business type, HK-style search page)
+- Registration: added "Registering as" selector (Owner / Sales Representative / Trader / Manufacturer) + mandatory KYC PDF upload (max 10 MB, object storage via Emergent objstore, path mdbrothers/kyc/{user_id}/{uuid}.pdf)
+- Admin buyers table: new Type column + KYC Doc PDF download button (GET /api/users/kyc-document/{user_id}, admin-only)
+- New /search page (HK-style selection screen): shape icon grid (9 shapes, inline SVG), carat presets (30s Down … 5 ct+), pill groups for Color/Clarity/Fluorescence/Lab/Cut/Polish/Symmetry, sticky action bar with filter count + Reset + Search → routes to /collection with URL params
+- Login now lands on /search; header has Search link
+- Catalog reads URL params (shape/color/clarity/cut/fluorescence/lab/min_carat/max_carat); sidebar extended with Fluorescence + Lab groups; backend list_diamonds supports fluorescence + lab filters
 - Demo buyer (demo@buyer.com) auto-marked approved by seed
 
 ## Backlog
