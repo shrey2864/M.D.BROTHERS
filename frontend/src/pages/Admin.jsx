@@ -9,7 +9,8 @@ import { Overline } from "@/components/Reveal";
 const EMPTY = {
   sku: "", shape: "Round", carat: "", cut: "Excellent", color: "D",
   clarity: "VVS1", polish: "Excellent", symmetry: "Excellent",
-  fluorescence: "None", certification: "GIA", price: "", image: "", featured: false,
+  fluorescence: "None", certification: "GIA", price: "", image: "",
+  video_url: "", certificate_url: "", featured: false,
 };
 
 const SELECTS = {
@@ -108,6 +109,8 @@ export default function Admin() {
       carat: parseFloat(form.carat),
       price: parseFloat(form.price),
       image: form.image || null,
+      video_url: form.video_url || null,
+      certificate_url: form.certificate_url || null,
     };
     try {
       if (form.diamond_id) {
@@ -197,6 +200,8 @@ export default function Admin() {
             <input required type="number" step="0.01" min="0.01" placeholder="Carat" value={form.carat} onChange={(e) => set("carat", e.target.value)} className="lux-input" data-testid="admin-carat-input" />
             <input required type="number" step="1" min="0" placeholder="Price (USD)" value={form.price} onChange={(e) => set("price", e.target.value)} className="lux-input" data-testid="admin-price-input" />
             <input placeholder="Photo URL (optional)" value={form.image} onChange={(e) => set("image", e.target.value)} className="lux-input" data-testid="admin-image-input" />
+            <input placeholder="Certificate PDF link (optional)" value={form.certificate_url} onChange={(e) => set("certificate_url", e.target.value)} className="lux-input" data-testid="admin-certificate-input" />
+            <input placeholder="360° Video link (optional)" value={form.video_url} onChange={(e) => set("video_url", e.target.value)} className="lux-input" data-testid="admin-video-input" />
             {Object.entries(SELECTS).map(([key, opts]) => (
               <label key={key} className="block">
                 <span className="font-mono text-[10px] uppercase tracking-[0.25em] text-zinc-500">{key}</span>

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { ArrowLeft, MessageCircle } from "lucide-react";
+import { ArrowLeft, MessageCircle, Download, FileBadge, Play, ImageIcon } from "lucide-react";
 import { api } from "@/lib/api";
 import { waLink } from "@/lib/config";
 import { useAuth } from "@/context/AuthContext";
@@ -149,6 +149,38 @@ export default function DiamondDetail() {
                 </span>
               </div>
             ))}
+          </div>
+
+          {/* Downloads */}
+          <div className="mt-10" data-testid="diamond-downloads">
+            <Overline>Downloads</Overline>
+            <div className="mt-5 flex flex-wrap gap-3">
+              <a href={diamond.certificate_url || diamond.image} target="_blank" rel="noopener noreferrer"
+                download data-testid="download-certificate-button"
+                className="flex items-center gap-2 border border-gold/50 px-5 py-3 font-mono text-[10px] uppercase tracking-[0.2em] text-gold transition-colors duration-300 hover:bg-gold hover:text-black active:scale-95">
+                <FileBadge className="h-4 w-4" strokeWidth={1.5} />
+                Certificate {diamond.certificate_url ? "PDF" : ""}
+              </a>
+              {diamond.video_url ? (
+                <a href={diamond.video_url} target="_blank" rel="noopener noreferrer"
+                  download data-testid="download-video-button"
+                  className="flex items-center gap-2 border border-white/20 px-5 py-3 font-mono text-[10px] uppercase tracking-[0.2em] text-white transition-colors duration-300 hover:border-gold hover:text-gold active:scale-95">
+                  <Play className="h-4 w-4" strokeWidth={1.5} />
+                  360° Video
+                </a>
+              ) : (
+                <span className="flex items-center gap-2 border border-white/5 px-5 py-3 font-mono text-[10px] uppercase tracking-[0.2em] text-zinc-700" data-testid="download-video-unavailable">
+                  <Play className="h-4 w-4" strokeWidth={1.5} />
+                  Video on request
+                </span>
+              )}
+              <a href={diamond.image} target="_blank" rel="noopener noreferrer"
+                download data-testid="download-image-button"
+                className="flex items-center gap-2 border border-white/20 px-5 py-3 font-mono text-[10px] uppercase tracking-[0.2em] text-white transition-colors duration-300 hover:border-gold hover:text-gold active:scale-95">
+                <ImageIcon className="h-4 w-4" strokeWidth={1.5} />
+                Image
+              </a>
+            </div>
           </div>
 
           <div className="mt-16">

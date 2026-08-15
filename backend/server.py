@@ -416,6 +416,8 @@ class DiamondBody(BaseModel):
     fluorescence: str = "None"
     certification: str = "GIA"
     image: Optional[str] = None
+    video_url: Optional[str] = None
+    certificate_url: Optional[str] = None
     featured: bool = False
 
 
@@ -559,6 +561,8 @@ def map_feed_record(rec: dict) -> Optional[dict]:
         "fluorescence": str(_pick(rec, "fluorescence", "fluor", "fluo") or "None").strip().title(),
         "certification": str(_pick(rec, "certification", "certificate", "lab", "cert") or "GIA").strip().upper(),
         "image": _pick(rec, "image", "image_url", "photo", "picture", "img") or DIAMOND_IMAGES[0],
+        "video_url": _pick(rec, "video", "video_url", "video_link"),
+        "certificate_url": _pick(rec, "certificate_url", "cert_url", "cert_link", "certificate_pdf", "report_url", "cert_pdf"),
         "source": "feed",
     }
     price = _to_float(_pick(rec, "price", "price_usd", "total_price", "amount", "value", "total"))

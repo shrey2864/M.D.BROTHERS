@@ -46,6 +46,10 @@
 - Registration now requires: full name, company, KYC/legal name, mobile, email, password → account created as "pending"; success screen explains manual approval
 - Admin buyer approvals: GET /api/admin/users, POST /api/admin/users/{id}/status (approved/rejected/pending); /admin page has "Buyer approvals" table with KYC details and Approve/Reject buttons
 - Approval email: approving a buyer automatically emails them a branded "account approved" message with a sign-in button (verified: email_sent true via test inbox)
+
+### 2026-08-15 (round 4 — downloads + story wording)
+- Our Story rewritten without place names (customer-friendly): "Handpicked At Origin", "The Scaife & The Hand" (0.18 ct to 10 ct+ range mentioned), "Certified, Without Exception", "A Quiet Global Trust"
+- Per-diamond downloads: certificate PDF link, 360° video link, image download — shown on diamond detail page; certificate_url/video_url fields in DiamondBody, admin form, and stock-feed mapping (video/video_url, cert_url/report_url etc.)
 - Demo buyer (demo@buyer.com) auto-marked approved by seed
 
 ## Backlog
