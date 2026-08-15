@@ -441,7 +441,33 @@ async def admin_set_user_status(user_id: str, body: UserStatusBody, user: dict =
     result = await db.users.update_one({"user_id": user_id}, {"$set": {"status": body.status}})
     if result.matched_count == 0:
         raise HTTPException(status_code=404, detail="User not found")
-    return {"status": body.status}
+
+    email_sent = False
+    if body.status == "approved":
+        buyer = await db.users.find_one({"user_id": user_id}, {"_id": 0})
+        if buyer and EMAIL_KEY:
+            login_url = f"{os.environ.get('FRONTEND_URL', '').rstrip('/')}/login"
+            subject = f"Your {EMAIL_FROM_NAME} trade account is approved"
+            html = (
+                '<table role="presentation" width="100%"><tr><td style="padding:24px;font-family:Arial,sans-serif;color:#111">'
+                f'<h2 style="margin:0 0 16px">Welcome to {escape(EMAIL_FROM_NAME)}</h2>'
+                f'<p>Dear {escape(buyer["name"])},</p>'
+                f'<p>Your trade account for <strong>{escape(buyer.get("company") or "your company")}</strong> has been '
+                'verified and approved by our team.</p>'
+                '<p>You can now sign in to explore our full live inventory, view trade pricing, '
+                'and send enquiries directly from any stone.</p>'
+                f'<p><a href="{escape(login_url)}" style="display:inline-block;background:#CBA153;color:#000;'
+                'padding:12px 28px;text-decoration:none;font-size:13px;letter-spacing:2px">SIGN IN TO YOUR ACCOUNT</a></p>'
+                f'<p style="font-size:12px;color:#888;margin-top:24px">Sent by {escape(EMAIL_FROM_NAME)}. '
+                'We never ask for your password or card details by email.</p>'
+                '</td></tr></table>'
+            )
+            try:
+                await send_email(to=buyer["email"], subject=subject, html=html)
+                email_sent = True
+            except HTTPException:
+                logger.error(f"Approval email failed for {buyer['email']}")
+    return {"status": body.status, "email_sent": email_sent}
 
 
 @api_router.post("/diamonds")

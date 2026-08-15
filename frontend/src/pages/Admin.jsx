@@ -41,8 +41,12 @@ export default function Admin() {
 
   const setBuyerStatus = async (b, status) => {
     try {
-      await api.post(`/admin/users/${b.user_id}/status`, { status });
-      toast.success(`${b.name} ${status}`);
+      const { data } = await api.post(`/admin/users/${b.user_id}/status`, { status });
+      toast.success(
+        status === "approved"
+          ? `${b.name} approved${data.email_sent ? " — approval email sent" : ""}`
+          : `${b.name} ${status}`
+      );
       loadBuyers();
     } catch (err) {
       toast.error(formatApiError(err.response?.data?.detail));

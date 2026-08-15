@@ -45,6 +45,7 @@
 - Collection is now MEMBERS ONLY: /api/diamonds + /api/diamonds/{id} require approved login (401 anonymous, 403 pending); Catalog, DiamondDetail and Home featured section show gate/pending panels for non-approved visitors
 - Registration now requires: full name, company, KYC/legal name, mobile, email, password → account created as "pending"; success screen explains manual approval
 - Admin buyer approvals: GET /api/admin/users, POST /api/admin/users/{id}/status (approved/rejected/pending); /admin page has "Buyer approvals" table with KYC details and Approve/Reject buttons
+- Approval email: approving a buyer automatically emails them a branded "account approved" message with a sign-in button (verified: email_sent true via test inbox)
 - Demo buyer (demo@buyer.com) auto-marked approved by seed
 
 ## Backlog
