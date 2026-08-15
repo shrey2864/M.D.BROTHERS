@@ -347,8 +347,9 @@ async def refresh(request: Request, response: Response):
 # ---------------- Diamonds ----------------
 SHAPES = ["Round", "Princess", "Oval", "Cushion", "Emerald", "Pear", "Marquise", "Radiant"]
 CUTS = ["Excellent", "Very Good", "Good"]
-COLORS = ["D", "E", "F", "G", "H", "I", "J"]
-CLARITIES = ["FL", "IF", "VVS1", "VVS2", "VS1", "VS2", "SI1"]
+COLORS = ["D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N",
+          "Fancy Yellow", "Fancy Pink", "Fancy Blue", "Fancy Green", "Fancy Orange", "Fancy Purplish"]
+CLARITIES = ["FL", "IF", "VVS1", "VVS2", "VS1", "VS2", "SI1", "SI2", "SI3", "I1", "I2", "I3"]
 DIAMOND_IMAGES = [
     "https://images.unsplash.com/photo-1702149001693-67ca09997ecc?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NDQ2NDF8MHwxfHNlYXJjaHw0fHxkaWFtb25kJTIwZ2Vtc3RvbmUlMjBjbG9zZSUyMHVwfGVufDB8fHx8MTc4NjYzODA0MXww&ixlib=rb-4.1.0&q=85&w=900",
     "https://images.unsplash.com/photo-1638517747421-a1eb8b4c9828?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjY2NzV8MHwxfHNlYXJjaHw0fHxkaWFtb25kJTIwY3V0dGluZyUyMHBvbGlzaGluZ3xlbnwwfHx8fDE3ODY2MzgwNDF8MA&ixlib=rb-4.1.0&q=85&w=900",
@@ -359,8 +360,12 @@ DIAMOND_IMAGES = [
 
 def build_seed_diamonds() -> List[dict]:
     rng = random.Random(42)
-    color_f = {"D": 1.6, "E": 1.45, "F": 1.3, "G": 1.15, "H": 1.0, "I": 0.88, "J": 0.78}
-    clarity_f = {"FL": 1.5, "IF": 1.4, "VVS1": 1.3, "VVS2": 1.2, "VS1": 1.1, "VS2": 1.0, "SI1": 0.85}
+    color_f = {"D": 1.6, "E": 1.45, "F": 1.3, "G": 1.15, "H": 1.0, "I": 0.88, "J": 0.78,
+               "K": 0.7, "L": 0.62, "M": 0.55, "N": 0.5,
+               "Fancy Yellow": 2.2, "Fancy Pink": 3.2, "Fancy Blue": 3.6, "Fancy Green": 2.8,
+               "Fancy Orange": 2.6, "Fancy Purplish": 3.0}
+    clarity_f = {"FL": 1.5, "IF": 1.4, "VVS1": 1.3, "VVS2": 1.2, "VS1": 1.1, "VS2": 1.0, "SI1": 0.85,
+                 "SI2": 0.75, "SI3": 0.65, "I1": 0.5, "I2": 0.4, "I3": 0.32}
     cut_f = {"Excellent": 1.2, "Very Good": 1.05, "Good": 0.9}
     diamonds = []
     for i in range(36):
@@ -402,6 +407,8 @@ async def list_diamonds(
     max_carat: Optional[float] = None,
     fluorescence: Optional[str] = None,
     lab: Optional[str] = None,
+    polish: Optional[str] = None,
+    symmetry: Optional[str] = None,
     q: Optional[str] = None,
     sort: str = "featured",
     limit: int = Query(default=60, le=200),
@@ -412,11 +419,27 @@ async def list_diamonds(
     if cut:
         query["cut"] = {"$in": cut.split(",")}
     if color:
-        query["color"] = {"$in": color.split(",")}
+        vals = color.split(",")
+        conds = []
+        plain = [v for v in vals if v not in ("O-Z", "Fancy")]
+        if plain:
+            conds.append({"color": {"$in": plain}})
+        if "O-Z" in vals:
+            conds.append({"color": {"$regex": "^[O-Z]"}})
+        if "Fancy" in vals:
+            conds.append({"color": {"$regex": "^Fancy"}})
+        if len(conds) == 1:
+            query["color"] = conds[0]["color"]
+        elif conds:
+            query["$or"] = conds
     if clarity:
         query["clarity"] = {"$in": clarity.split(",")}
     if fluorescence:
         query["fluorescence"] = {"$in": fluorescence.split(",")}
+    if polish:
+        query["polish"] = {"$in": polish.split(",")}
+    if symmetry:
+        query["symmetry"] = {"$in": symmetry.split(",")}
     if lab:
         query["certification"] = {"$in": lab.split(",")}
     if min_carat is not None or max_carat is not None:

@@ -51,6 +51,13 @@
 - Our Story rewritten without place names (customer-friendly): "Handpicked At Origin", "The Scaife & The Hand" (0.18 ct to 10 ct+ range mentioned), "Certified, Without Exception", "A Quiet Global Trust"
 - Per-diamond downloads: certificate PDF link, 360° video link, image download — shown on diamond detail page; certificate_url/video_url fields in DiamondBody, admin form, and stock-feed mapping (video/video_url, cert_url/report_url etc.)
 
+### 2026-08-15 (round 7 — hero image + exact HK filter spec)
+- Hero image replaced with user-picked diamond photo (/app/frontend/public/hero-diamond.jpg, from user's Google share link)
+- Search page: custom carat From/To inputs + Apply; colors D–N + O-Z + Fancy row (FANCY, PURPLISH, YELLOW, ORANGE, BLUE, PINK, BROWN, GRAY, GREEN — exact HK order); clarity FL, IF, VVS1, VVS2, VS1, VS2, SI1, SI2, SI3, I1, I2, I3; quick toggles 3EX / 2EX / 3VG+ / NO BGM in sticky bottom bar
+- Search link hidden from public nav (members only, gated page)
+- Backend: polish/symmetry filter params; color filter handles "O-Z" (regex ^[O-Z]) and "Fancy" (regex ^Fancy); seed reseeded with D–N + fancy colors + full clarity scale
+- Catalog sidebar groups extended to match (colors incl. O-Z + fancy, polish, symmetry)
+
 ### 2026-08-15 (round 6 — logo + Midnight Sapphire theme)
 - Official M.D.Brothers logo integrated (white background removed → transparent PNG at /app/frontend/public/logo.png) in header + footer
 - Full retheme to "Midnight Sapphire" matching the logo: bg #07131F, surfaces #0C1E30/#0A1A2B, accent ice blue #5DA9E4 / sapphire #2E7CB8 (tailwind `gold` tokens remapped to blue), approval email button now sapphire

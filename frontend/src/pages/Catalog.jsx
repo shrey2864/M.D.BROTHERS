@@ -12,9 +12,11 @@ import { Search } from "lucide-react";
 
 const GROUPS = [
   { key: "shape", label: "Shape", options: ["Round", "Princess", "Oval", "Cushion", "Emerald", "Pear", "Marquise", "Radiant"] },
-  { key: "color", label: "Color", options: ["D", "E", "F", "G", "H", "I", "J"] },
-  { key: "clarity", label: "Clarity", options: ["FL", "IF", "VVS1", "VVS2", "VS1", "VS2", "SI1"] },
+  { key: "color", label: "Color", options: ["D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O-Z", "Fancy", "Fancy Purplish", "Fancy Yellow", "Fancy Orange", "Fancy Blue", "Fancy Pink", "Fancy Brown", "Fancy Gray", "Fancy Green"] },
+  { key: "clarity", label: "Clarity", options: ["FL", "IF", "VVS1", "VVS2", "VS1", "VS2", "SI1", "SI2", "SI3", "I1", "I2", "I3"] },
   { key: "cut", label: "Cut", options: ["Excellent", "Very Good", "Good"] },
+  { key: "polish", label: "Polish", options: ["Excellent", "Very Good", "Good"] },
+  { key: "symmetry", label: "Symmetry", options: ["Excellent", "Very Good", "Good"] },
   { key: "fluorescence", label: "Fluorescence", options: ["None", "Faint", "Medium", "Strong"] },
   { key: "lab", label: "Lab", options: ["GIA", "IGI", "HRD"] },
 ];

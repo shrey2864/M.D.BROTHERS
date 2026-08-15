@@ -1,8 +1,9 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { Search, RotateCcw } from "lucide-react";
 import { Overline, MaskedLine } from "@/components/Reveal";
+import { useAuth } from "@/context/AuthContext";
 
 const SHAPE_PATHS = {
   Round: <circle cx="12" cy="12" r="8" />,
@@ -31,14 +32,35 @@ const CARAT_PRESETS = [
   { label: "5 ct +", range: [5.0, 10] },
 ];
 
+const WHITE_COLORS = ["D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O-Z"];
+const FANCY_COLORS = [
+  { value: "Fancy", label: "Fancy" },
+  { value: "Fancy Purplish", label: "Purplish" },
+  { value: "Fancy Yellow", label: "Yellow" },
+  { value: "Fancy Orange", label: "Orange" },
+  { value: "Fancy Blue", label: "Blue" },
+  { value: "Fancy Pink", label: "Pink" },
+  { value: "Fancy Brown", label: "Brown" },
+  { value: "Fancy Gray", label: "Gray" },
+  { value: "Fancy Green", label: "Green" },
+];
+
+const CLARITY_OPTIONS = ["FL", "IF", "VVS1", "VVS2", "VS1", "VS2", "SI1", "SI2", "SI3", "I1", "I2", "I3"];
+
 const PILL_GROUPS = [
-  { key: "color", label: "Color", options: ["D", "E", "F", "G", "H", "I", "J"] },
-  { key: "clarity", label: "Clarity", options: ["FL", "IF", "VVS1", "VVS2", "VS1", "VS2", "SI1"] },
+  { key: "clarity", label: "Clarity", options: CLARITY_OPTIONS },
   { key: "fluorescence", label: "Fluorescence", options: ["None", "Faint", "Medium", "Strong"] },
   { key: "lab", label: "Lab", options: ["GIA", "IGI", "HRD"] },
   { key: "cut", label: "Cut", options: ["Excellent", "Very Good", "Good"] },
-  { key: "polish", label: "Polish", options: ["Excellent", "Very Good"] },
-  { key: "symmetry", label: "Symmetry", options: ["Excellent", "Very Good"] },
+  { key: "polish", label: "Polish", options: ["Excellent", "Very Good", "Good"] },
+  { key: "symmetry", label: "Symmetry", options: ["Excellent", "Very Good", "Good"] },
+];
+
+const QUICK_TOGGLES = [
+  { key: "3ex", label: "3EX", pills: { cut: ["Excellent"], polish: ["Excellent"], symmetry: ["Excellent"] } },
+  { key: "2ex", label: "2EX", pills: { cut: ["Excellent"], polish: ["Excellent", "Very Good"], symmetry: ["Excellent", "Very Good"] } },
+  { key: "3vg", label: "3VG+", pills: { cut: ["Excellent", "Very Good"], polish: ["Excellent", "Very Good"], symmetry: ["Excellent", "Very Good"] } },
+  { key: "nobgm", label: "NO BGM", pills: { fluorescence: ["None"] } },
 ];
 
 const ShapeIcon = ({ shape, active }) => (
@@ -48,30 +70,101 @@ const ShapeIcon = ({ shape, active }) => (
   </svg>
 );
 
+const Gate = ({ user }) => (
+  <div className="mx-auto max-w-[1440px] px-6 pb-32 pt-40" data-testid="search-gate">
+    <Overline>{!user ? "Members Only" : "Approval Pending"}</Overline>
+    <h1 className="mt-4 max-w-2xl font-serif text-5xl font-light leading-tight text-white">
+      {!user ? (<>Diamond search is <span className="italic text-gold">members only.</span></>)
+        : (<>Your account is <span className="italic text-gold">under review.</span></>)}
+    </h1>
+    <p className="mt-6 max-w-lg text-sm leading-relaxed text-zinc-400">
+      {!user
+        ? "Register with your company and KYC details — once approved, the full diamond search unlocks."
+        : "Once our team approves your account, the diamond search, collection and live pricing will unlock."}
+    </p>
+    {!user && (
+      <div className="mt-10 flex flex-wrap gap-4">
+        <Link to="/register" data-testid="search-gate-register-button"
+          className="bg-gold px-8 py-4 font-mono text-[11px] uppercase tracking-[0.25em] text-black transition-colors hover:bg-gold-light active:scale-95">
+          Register for Access
+        </Link>
+        <Link to="/login" data-testid="search-gate-login-button"
+          className="border border-white/20 px-8 py-4 font-mono text-[11px] uppercase tracking-[0.25em] text-white transition-colors hover:border-gold hover:text-gold active:scale-95">
+          Sign In
+        </Link>
+      </div>
+    )}
+  </div>
+);
+
 export default function SearchSelect() {
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const canView = !!user && (user.role === "admin" || user.status === "approved");
   const [shapes, setShapes] = useState([]);
   const [carat, setCarat] = useState(null); // null = All
-  const [pills, setPills] = useState({ color: [], clarity: [], fluorescence: [], lab: [], cut: [], polish: [], symmetry: [] });
+  const [caratFrom, setCaratFrom] = useState("");
+  const [caratTo, setCaratTo] = useState("");
+  const [colors, setColors] = useState([]);
+  const [quick, setQuick] = useState([]);
+  const [pills, setPills] = useState({ clarity: [], fluorescence: [], lab: [], cut: [], polish: [], symmetry: [] });
 
   const toggleShape = (s) =>
     setShapes((prev) => (prev.includes(s) ? prev.filter((x) => x !== s) : [...prev, s]));
 
+  const toggleColor = (v) =>
+    setColors((prev) => (prev.includes(v) ? prev.filter((x) => x !== v) : [...prev, v]));
+
   const togglePill = (key, v) =>
     setPills((p) => ({ ...p, [key]: p[key].includes(v) ? p[key].filter((x) => x !== v) : [...p[key], v] }));
+
+  const applyCustomCarat = () => {
+    const from = parseFloat(caratFrom);
+    const to = parseFloat(caratTo);
+    if (!isNaN(from) && !isNaN(to) && to >= from) setCarat([from, to]);
+    else if (!isNaN(from)) setCarat([from, 10]);
+    else if (!isNaN(to)) setCarat([0.18, to]);
+  };
+
+  const toggleQuick = (qt) => {
+    if (quick.includes(qt.key)) {
+      setQuick(quick.filter((k) => k !== qt.key));
+      setPills((p) => {
+        const next = { ...p };
+        Object.entries(qt.pills).forEach(([k, vals]) => {
+          next[k] = next[k].filter((v) => !vals.includes(v));
+        });
+        return next;
+      });
+    } else {
+      setQuick([...quick, qt.key]);
+      setPills((p) => {
+        const next = { ...p };
+        Object.entries(qt.pills).forEach(([k, vals]) => {
+          next[k] = [...new Set([...next[k], ...vals])];
+        });
+        return next;
+      });
+    }
+  };
 
   const reset = () => {
     setShapes([]);
     setCarat(null);
-    setPills({ color: [], clarity: [], fluorescence: [], lab: [], cut: [], polish: [], symmetry: [] });
+    setCaratFrom("");
+    setCaratTo("");
+    setColors([]);
+    setQuick([]);
+    setPills({ clarity: [], fluorescence: [], lab: [], cut: [], polish: [], symmetry: [] });
   };
 
   const filterCount =
-    shapes.length + (carat ? 1 : 0) + Object.values(pills).reduce((a, b) => a + b.length, 0);
+    shapes.length + colors.length + (carat ? 1 : 0) + Object.values(pills).reduce((a, b) => a + b.length, 0);
 
   const search = () => {
     const params = new URLSearchParams();
     if (shapes.length) params.set("shape", shapes.join(","));
+    if (colors.length) params.set("color", colors.join(","));
     if (carat) {
       params.set("min_carat", carat[0]);
       params.set("max_carat", carat[1]);
@@ -81,6 +174,8 @@ export default function SearchSelect() {
     });
     navigate(`/collection?${params.toString()}`);
   };
+
+  if (user !== null && !canView) return <Gate user={user} />;
 
   return (
     <div className="mx-auto max-w-[1440px] px-6 pb-40 pt-32" data-testid="search-select-page">
@@ -113,18 +208,68 @@ export default function SearchSelect() {
         </div>
       </div>
 
-      {/* Carat presets */}
+      {/* Carat: custom From/To + presets */}
       <div className="mt-12" data-testid="search-carat">
         <p className="font-mono text-[11px] uppercase tracking-[0.3em] text-gold">Carat Range</p>
-        <div className="mt-5 flex flex-wrap gap-2">
+        <div className="mt-5 flex flex-wrap items-end gap-3">
+          <input type="number" step="0.01" min="0.18" placeholder="From" value={caratFrom}
+            onChange={(e) => setCaratFrom(e.target.value)} data-testid="search-carat-from-input"
+            className="w-28 border border-white/20 bg-transparent px-4 py-2.5 font-mono text-xs text-white placeholder:text-zinc-600 focus:border-gold focus:outline-none" />
+          <input type="number" step="0.01" max="10" placeholder="To" value={caratTo}
+            onChange={(e) => setCaratTo(e.target.value)} data-testid="search-carat-to-input"
+            className="w-28 border border-white/20 bg-transparent px-4 py-2.5 font-mono text-xs text-white placeholder:text-zinc-600 focus:border-gold focus:outline-none" />
+          <button onClick={applyCustomCarat} data-testid="search-carat-apply-button"
+            className="border border-gold/50 px-5 py-2.5 font-mono text-[11px] uppercase tracking-[0.2em] text-gold transition-colors hover:bg-gold hover:text-black active:scale-95">
+            Apply
+          </button>
+          {carat && (
+            <span className="py-2.5 font-mono text-[11px] uppercase tracking-[0.2em] text-zinc-400" data-testid="search-carat-selected">
+              {carat[0]} – {carat[1]} ct selected
+            </span>
+          )}
+        </div>
+        <div className="mt-4 flex flex-wrap gap-2">
           {CARAT_PRESETS.map((c) => {
             const active = carat === null ? c.range === null : c.range !== null && carat?.[0] === c.range[0];
             return (
-              <button key={c.label} onClick={() => setCarat(c.range)} data-testid={`search-carat-${c.label.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`}
+              <button key={c.label} onClick={() => { setCarat(c.range); setCaratFrom(""); setCaratTo(""); }}
+                data-testid={`search-carat-${c.label.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`}
                 className={`border px-5 py-2.5 font-mono text-[11px] uppercase tracking-[0.15em] transition-all duration-300 active:scale-95 ${
                   active ? "border-gold bg-gold text-black" : "border-white/10 text-zinc-400 hover:border-gold/50 hover:text-white"
                 }`}>
                 {c.label}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Color: white D-N + O-Z, then fancy */}
+      <div className="mt-12" data-testid="search-group-color">
+        <p className="font-mono text-[11px] uppercase tracking-[0.3em] text-gold">Color</p>
+        <div className="mt-5 flex flex-wrap gap-2">
+          {WHITE_COLORS.map((c) => {
+            const active = colors.includes(c);
+            return (
+              <button key={c} onClick={() => toggleColor(c)} data-testid={`search-color-${c.toLowerCase()}`}
+                className={`border px-5 py-2.5 font-mono text-[11px] uppercase tracking-[0.15em] transition-all duration-300 active:scale-95 ${
+                  active ? "border-gold bg-gold text-black" : "border-white/10 text-zinc-400 hover:border-gold/50 hover:text-white"
+                }`}>
+                {c}
+              </button>
+            );
+          })}
+        </div>
+        <p className="mt-6 font-mono text-[10px] uppercase tracking-[0.3em] text-zinc-500">Fancy Colour</p>
+        <div className="mt-3 flex flex-wrap gap-2">
+          {FANCY_COLORS.map((f) => {
+            const active = colors.includes(f.value);
+            return (
+              <button key={f.value} onClick={() => toggleColor(f.value)} data-testid={`search-color-${f.value.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`}
+                className={`border px-5 py-2.5 font-mono text-[11px] uppercase tracking-[0.15em] transition-all duration-300 active:scale-95 ${
+                  active ? "border-gold bg-gold text-black" : "border-white/10 text-zinc-400 hover:border-gold/50 hover:text-white"
+                }`}>
+                {f.label}
               </button>
             );
           })}
@@ -151,13 +296,23 @@ export default function SearchSelect() {
         </div>
       ))}
 
-      {/* Action bar */}
+      {/* Action bar with quick toggles */}
       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
         className="fixed bottom-0 left-0 right-0 z-40 border-t border-white/10 bg-black/80 backdrop-blur-xl">
-        <div className="mx-auto flex max-w-[1440px] items-center justify-between gap-4 px-6 py-4">
-          <p className="font-mono text-[10px] uppercase tracking-[0.25em] text-zinc-500" data-testid="search-filter-count">
-            {filterCount === 0 ? "No filters selected — shows everything" : `${filterCount} filter${filterCount > 1 ? "s" : ""} selected`}
-          </p>
+        <div className="mx-auto flex max-w-[1440px] flex-wrap items-center justify-between gap-4 px-6 py-4">
+          <div className="flex items-center gap-2" data-testid="search-quick-toggles">
+            {QUICK_TOGGLES.map((qt) => (
+              <button key={qt.key} onClick={() => toggleQuick(qt)} data-testid={`search-quick-${qt.key}`}
+                className={`border px-4 py-2 font-mono text-[10px] uppercase tracking-[0.15em] transition-all duration-300 active:scale-95 ${
+                  quick.includes(qt.key) ? "border-gold bg-gold text-black" : "border-white/15 text-zinc-400 hover:border-gold/50 hover:text-white"
+                }`}>
+                {qt.label}
+              </button>
+            ))}
+            <span className="ml-3 hidden font-mono text-[10px] uppercase tracking-[0.25em] text-zinc-500 sm:inline" data-testid="search-filter-count">
+              {filterCount === 0 ? "No filters — shows everything" : `${filterCount} filters selected`}
+            </span>
+          </div>
           <div className="flex items-center gap-3">
             <button onClick={reset} data-testid="search-reset-button"
               className="flex items-center gap-2 border border-white/20 px-5 py-3 font-mono text-[11px] uppercase tracking-[0.2em] text-zinc-300 transition-colors hover:border-gold hover:text-gold active:scale-95">
