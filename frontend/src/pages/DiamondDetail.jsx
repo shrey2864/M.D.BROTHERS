@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, MessageCircle } from "lucide-react";
 import { api } from "@/lib/api";
+import { waLink } from "@/lib/config";
 import { useAuth } from "@/context/AuthContext";
 import { Overline, Reveal } from "@/components/Reveal";
 import { EnquiryForm } from "@/components/EnquiryForm";
@@ -94,6 +95,16 @@ export default function DiamondDetail() {
                 </Link>
               </div>
             )}
+            <a
+              href={waLink(`Hello M.D. Brothers, I'm interested in ${diamond.sku} — ${diamond.carat.toFixed(2)} ct ${diamond.shape} (${diamond.color}/${diamond.clarity}, ${diamond.cut} cut). Please share more details.`)}
+              target="_blank"
+              rel="noopener noreferrer"
+              data-testid="diamond-whatsapp-button"
+              className="mt-6 inline-flex items-center gap-3 border border-emerald-500/50 px-8 py-3 font-mono text-[11px] uppercase tracking-[0.25em] text-emerald-400 transition-colors duration-300 hover:bg-emerald-500 hover:text-black active:scale-95"
+            >
+              <MessageCircle className="h-4 w-4" strokeWidth={1.5} />
+              Chat on WhatsApp
+            </a>
           </div>
 
           <div className="mt-8 grid grid-cols-2 gap-x-8" data-testid="diamond-specs">

@@ -1,6 +1,8 @@
 import { Link } from "react-router-dom";
 import { motion } from "framer-motion";
+import { MessageCircle } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
+import { waLink } from "@/lib/config";
 
 export const DiamondCard = ({ diamond, index = 0 }) => {
   const { user } = useAuth();
@@ -37,7 +39,7 @@ export const DiamondCard = ({ diamond, index = 0 }) => {
         <p className="mt-3 font-mono text-[11px] uppercase tracking-[0.2em] text-zinc-400">
           {diamond.carat.toFixed(2)} CT • {diamond.color} • {diamond.clarity} • {diamond.cut}
         </p>
-        <div className="mt-4 border-t border-white/10 pt-4">
+        <div className="mt-4 flex items-center justify-between border-t border-white/10 pt-4">
           {diamond.price != null ? (
             <p className="font-serif text-2xl text-gold" data-testid={`diamond-price-${diamond.sku}`}>
               ${diamond.price.toLocaleString()}
@@ -47,6 +49,21 @@ export const DiamondCard = ({ diamond, index = 0 }) => {
               Login to view price
             </p>
           )}
+          <button
+            onClick={(e) => {
+              e.preventDefault();
+              window.open(
+                waLink(`Hello M.D. Brothers, I'm interested in ${diamond.sku} — ${diamond.carat.toFixed(2)} ct ${diamond.shape}.`),
+                "_blank",
+                "noopener,noreferrer"
+              );
+            }}
+            data-testid={`diamond-whatsapp-${diamond.sku}`}
+            aria-label={`Chat about ${diamond.sku} on WhatsApp`}
+            className="border border-emerald-500/40 p-2 text-emerald-400 transition-colors duration-300 hover:bg-emerald-500 hover:text-black active:scale-95"
+          >
+            <MessageCircle className="h-4 w-4" strokeWidth={1.5} />
+          </button>
         </div>
       </Link>
     </motion.div>

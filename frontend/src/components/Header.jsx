@@ -26,7 +26,7 @@ export const Header = () => {
         <Link to="/" data-testid="header-logo-link" className="flex items-center gap-2 group">
           <Gem className="h-4 w-4 text-gold transition-transform duration-500 group-hover:rotate-180" strokeWidth={1.5} />
           <span className="font-serif text-lg tracking-[0.18em] text-white">
-            SHREE <span className="text-gold">DIAMOND</span> EXPORTS
+            M.D. <span className="text-gold">BROTHERS</span>
           </span>
         </Link>
 
@@ -57,6 +57,12 @@ export const Header = () => {
         <div className="hidden items-center gap-4 md:flex">
           {user ? (
             <>
+              {user.role === "admin" && (
+                <Link to="/admin" data-testid="header-admin-link"
+                  className="font-mono text-[11px] uppercase tracking-[0.2em] text-gold transition-colors hover:text-gold-light">
+                  Inventory
+                </Link>
+              )}
               <span className="font-mono text-[11px] uppercase tracking-[0.2em] text-zinc-400" data-testid="header-user-name">
                 {user.name}
               </span>

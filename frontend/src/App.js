@@ -12,6 +12,7 @@ import DiamondDetail from "@/pages/DiamondDetail";
 import Login from "@/pages/Login";
 import Register from "@/pages/Register";
 import Contact from "@/pages/Contact";
+import Admin from "@/pages/Admin";
 
 const ScrollManager = () => {
   const { pathname } = useLocation();
@@ -50,6 +51,7 @@ function App() {
               <Route path="/login" element={<Login />} />
               <Route path="/register" element={<Register />} />
               <Route path="/contact" element={<Contact />} />
+              <Route path="/admin" element={<Admin />} />
             </Routes>
           </main>
           <Footer />

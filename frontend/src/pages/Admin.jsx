@@ -1,0 +1,169 @@
+import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
+import { toast } from "sonner";
+import { Plus, Pencil, Trash2, X } from "lucide-react";
+import { api, formatApiError } from "@/lib/api";
+import { useAuth } from "@/context/AuthContext";
+import { Overline } from "@/components/Reveal";
+
+const EMPTY = {
+  sku: "", shape: "Round", carat: "", cut: "Excellent", color: "D",
+  clarity: "VVS1", polish: "Excellent", symmetry: "Excellent",
+  fluorescence: "None", certification: "GIA", price: "", image: "", featured: false,
+};
+
+const SELECTS = {
+  shape: ["Round", "Princess", "Oval", "Cushion", "Emerald", "Pear", "Marquise", "Radiant"],
+  cut: ["Excellent", "Very Good", "Good"],
+  color: ["D", "E", "F", "G", "H", "I", "J"],
+  clarity: ["FL", "IF", "VVS1", "VVS2", "VS1", "VS2", "SI1"],
+  polish: ["Excellent", "Very Good", "Good"],
+  symmetry: ["Excellent", "Very Good", "Good"],
+  fluorescence: ["None", "Faint", "Medium", "Strong"],
+  certification: ["GIA", "IGI", "HRD"],
+};
+
+export default function Admin() {
+  const { user } = useAuth();
+  const [diamonds, setDiamonds] = useState([]);
+  const [form, setForm] = useState(null); // null = closed, {…} = editing/adding
+  const [saving, setSaving] = useState(false);
+
+  const load = () =>
+    api.get("/diamonds", { params: { limit: 200 } }).then((r) => setDiamonds(r.data.items)).catch(() => {});
+
+  useEffect(() => {
+    if (user && user.role === "admin") load();
+  }, [user]);
+
+  if (user === null) return <div className="px-6 py-40 font-mono text-xs uppercase tracking-[0.3em] text-zinc-600">Loading…</div>;
+
+  if (!user || user.role !== "admin")
+    return (
+      <div className="mx-auto max-w-[1440px] px-6 py-40" data-testid="admin-denied">
+        <p className="font-serif text-3xl italic text-zinc-500">Admin access only.</p>
+        <Link to="/login" className="mt-6 inline-block font-mono text-[11px] uppercase tracking-[0.25em] text-gold">← Sign in as admin</Link>
+      </div>
+    );
+
+  const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
+
+  const submit = async (e) => {
+    e.preventDefault();
+    setSaving(true);
+    const payload = {
+      ...form,
+      carat: parseFloat(form.carat),
+      price: parseFloat(form.price),
+      image: form.image || null,
+    };
+    try {
+      if (form.diamond_id) {
+        await api.put(`/diamonds/${form.diamond_id}`, payload);
+        toast.success(`${form.sku} updated`);
+      } else {
+        await api.post("/diamonds", payload);
+        toast.success(`${form.sku} added to the collection`);
+      }
+      setForm(null);
+      load();
+    } catch (err) {
+      toast.error(formatApiError(err.response?.data?.detail));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const remove = async (d) => {
+    if (!window.confirm(`Delete ${d.sku}?`)) return;
+    try {
+      await api.delete(`/diamonds/${d.diamond_id}`);
+      toast.success(`${d.sku} deleted`);
+      load();
+    } catch (err) {
+      toast.error(formatApiError(err.response?.data?.detail));
+    }
+  };
+
+  return (
+    <div className="mx-auto max-w-[1440px] px-6 pb-32 pt-32" data-testid="admin-page">
+      <div className="flex flex-wrap items-end justify-between gap-6">
+        <div>
+          <Overline>Inventory Manager</Overline>
+          <h1 className="mt-4 font-serif text-5xl font-light text-white">Your <span className="italic text-gold">stones.</span></h1>
+          <p className="mt-3 text-sm text-zinc-500">{diamonds.length} diamonds in the collection</p>
+        </div>
+        <button onClick={() => setForm({ ...EMPTY })} data-testid="admin-add-diamond-button"
+          className="flex items-center gap-2 bg-gold px-6 py-3 font-mono text-[11px] uppercase tracking-[0.25em] text-black transition-colors hover:bg-gold-light active:scale-95">
+          <Plus className="h-4 w-4" strokeWidth={1.5} /> Add Diamond
+        </button>
+      </div>
+
+      {form && (
+        <form onSubmit={submit} className="mt-12 border border-gold/30 bg-[#0A0A0A] p-8" data-testid="admin-diamond-form">
+          <div className="mb-8 flex items-center justify-between">
+            <Overline>{form.diamond_id ? `Editing ${form.sku}` : "New Diamond"}</Overline>
+            <button type="button" onClick={() => setForm(null)} data-testid="admin-form-close-button" aria-label="Close form">
+              <X className="h-4 w-4 text-zinc-500 hover:text-white" strokeWidth={1.5} />
+            </button>
+          </div>
+          <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-4">
+            <input required placeholder="SKU (e.g. MDB-001)" value={form.sku} onChange={(e) => set("sku", e.target.value)} className="lux-input" data-testid="admin-sku-input" />
+            <input required type="number" step="0.01" min="0.01" placeholder="Carat" value={form.carat} onChange={(e) => set("carat", e.target.value)} className="lux-input" data-testid="admin-carat-input" />
+            <input required type="number" step="1" min="0" placeholder="Price (USD)" value={form.price} onChange={(e) => set("price", e.target.value)} className="lux-input" data-testid="admin-price-input" />
+            <input placeholder="Photo URL (optional)" value={form.image} onChange={(e) => set("image", e.target.value)} className="lux-input" data-testid="admin-image-input" />
+            {Object.entries(SELECTS).map(([key, opts]) => (
+              <label key={key} className="block">
+                <span className="font-mono text-[10px] uppercase tracking-[0.25em] text-zinc-500">{key}</span>
+                <select value={form[key]} onChange={(e) => set(key, e.target.value)} data-testid={`admin-${key}-select`}
+                  className="mt-2 w-full border-b border-white/20 bg-transparent py-2 text-sm text-white focus:border-gold focus:outline-none [&>option]:bg-black">
+                  {opts.map((o) => <option key={o} value={o}>{o}</option>)}
+                </select>
+              </label>
+            ))}
+          </div>
+          <div className="mt-8 flex items-center justify-between">
+            <label className="flex cursor-pointer items-center gap-3 text-sm text-zinc-400">
+              <input type="checkbox" checked={form.featured} onChange={(e) => set("featured", e.target.checked)} data-testid="admin-featured-checkbox" className="h-4 w-4 accent-[#CBA153]" />
+              Feature on homepage
+            </label>
+            <button type="submit" disabled={saving} data-testid="admin-save-diamond-button"
+              className="border border-gold px-10 py-3 font-mono text-[11px] uppercase tracking-[0.25em] text-gold transition-colors hover:bg-gold hover:text-black active:scale-95 disabled:opacity-50">
+              {saving ? "Saving…" : form.diamond_id ? "Save Changes" : "Add to Collection"}
+            </button>
+          </div>
+        </form>
+      )}
+
+      <div className="mt-12 overflow-x-auto border border-white/10" data-testid="admin-inventory-table">
+        <table className="w-full text-left text-sm">
+          <thead>
+            <tr className="border-b border-white/10 font-mono text-[10px] uppercase tracking-[0.25em] text-zinc-500">
+              <th className="px-5 py-4">SKU</th><th className="px-5 py-4">Shape</th><th className="px-5 py-4">Carat</th>
+              <th className="px-5 py-4">Specs</th><th className="px-5 py-4">Cert</th><th className="px-5 py-4">Price</th>
+              <th className="px-5 py-4 text-right">Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {diamonds.map((d) => (
+              <tr key={d.diamond_id} className="border-b border-white/5 text-zinc-300 transition-colors hover:bg-white/[0.02]" data-testid={`admin-row-${d.sku}`}>
+                <td className="px-5 py-4 font-mono text-xs">{d.sku}{d.featured && <span className="ml-2 text-gold">✦</span>}</td>
+                <td className="px-5 py-4">{d.shape}</td>
+                <td className="px-5 py-4 font-mono text-xs">{d.carat.toFixed(2)}</td>
+                <td className="px-5 py-4 font-mono text-xs">{d.color} • {d.clarity} • {d.cut}</td>
+                <td className="px-5 py-4 font-mono text-xs">{d.certification}</td>
+                <td className="px-5 py-4 font-mono text-xs text-gold">${d.price?.toLocaleString()}</td>
+                <td className="px-5 py-4 text-right">
+                  <button onClick={() => setForm({ ...EMPTY, ...d })} data-testid={`admin-edit-${d.sku}`} aria-label={`Edit ${d.sku}`}
+                    className="p-2 text-zinc-500 transition-colors hover:text-gold"><Pencil className="h-4 w-4" strokeWidth={1.5} /></button>
+                  <button onClick={() => remove(d)} data-testid={`admin-delete-${d.sku}`} aria-label={`Delete ${d.sku}`}
+                    className="p-2 text-zinc-500 transition-colors hover:text-red-400"><Trash2 className="h-4 w-4" strokeWidth={1.5} /></button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}

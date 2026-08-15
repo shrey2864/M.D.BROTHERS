@@ -8,7 +8,7 @@ export const Footer = () => (
         <div className="flex items-center gap-2">
           <Gem className="h-4 w-4 text-gold" strokeWidth={1.5} />
           <span className="font-serif text-lg tracking-[0.18em] text-white">
-            SHREE <span className="text-gold">DIAMOND</span> EXPORTS
+            M.D. <span className="text-gold">BROTHERS</span>
           </span>
         </div>
         <p className="mt-6 max-w-sm text-sm leading-relaxed text-zinc-500">
@@ -30,14 +30,14 @@ export const Footer = () => (
         <p className="font-mono text-[11px] uppercase tracking-[0.3em] text-gold">Atelier</p>
         <div className="mt-5 flex flex-col gap-3 text-sm text-zinc-400">
           <span>Surat Diamond Bourse, Surat, Gujarat, India</span>
-          <span data-testid="footer-email">enquiries@shreediamondexports.com</span>
+          <span data-testid="footer-email">shreydoshi16@gmail.com</span>
           <span>+91 261 000 0000</span>
         </div>
       </div>
     </div>
     <div className="border-t border-white/10">
       <div className="mx-auto flex max-w-[1440px] flex-col gap-2 px-6 py-6 font-mono text-[10px] uppercase tracking-[0.25em] text-zinc-600 sm:flex-row sm:justify-between">
-        <span>© {new Date().getFullYear()} Shree Diamond Exports</span>
+        <span>© {new Date().getFullYear()} M.D. Brothers</span>
         <span>GIA • IGI • HRD Certified Stones</span>
       </div>
     </div>

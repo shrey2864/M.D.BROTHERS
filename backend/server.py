@@ -386,6 +386,61 @@ async def get_diamond(diamond_id: str, request: Request):
     return d
 
 
+# ---------------- Admin inventory ----------------
+class DiamondBody(BaseModel):
+    sku: str
+    shape: str
+    carat: float
+    cut: str
+    color: str
+    clarity: str
+    price: float
+    polish: str = "Excellent"
+    symmetry: str = "Excellent"
+    fluorescence: str = "None"
+    certification: str = "GIA"
+    image: Optional[str] = None
+    featured: bool = False
+
+
+async def require_admin(user: dict = Depends(get_current_user)) -> dict:
+    if user.get("role") != "admin":
+        raise HTTPException(status_code=403, detail="Admin only")
+    return user
+
+
+@api_router.post("/diamonds")
+async def create_diamond(body: DiamondBody, user: dict = Depends(require_admin)):
+    if await db.diamonds.find_one({"sku": body.sku}):
+        raise HTTPException(status_code=400, detail="SKU already exists")
+    doc = body.model_dump()
+    doc["diamond_id"] = str(uuid.uuid4())
+    doc["image"] = doc["image"] or DIAMOND_IMAGES[0]
+    doc["created_at"] = datetime.now(timezone.utc).isoformat()
+    await db.diamonds.insert_one(doc)
+    doc.pop("_id", None)
+    return doc
+
+
+@api_router.put("/diamonds/{diamond_id}")
+async def update_diamond(diamond_id: str, body: DiamondBody, user: dict = Depends(require_admin)):
+    doc = body.model_dump()
+    if not doc.get("image"):
+        doc["image"] = DIAMOND_IMAGES[0]
+    result = await db.diamonds.update_one({"diamond_id": diamond_id}, {"$set": doc})
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Diamond not found")
+    return await db.diamonds.find_one({"diamond_id": diamond_id}, {"_id": 0})
+
+
+@api_router.delete("/diamonds/{diamond_id}")
+async def delete_diamond(diamond_id: str, user: dict = Depends(require_admin)):
+    result = await db.diamonds.delete_one({"diamond_id": diamond_id})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Diamond not found")
+    return {"status": "deleted"}
+
+
 # ---------------- Enquiries ----------------
 class EnquiryBody(BaseModel):
     name: str
@@ -433,9 +488,7 @@ async def create_enquiry(body: EnquiryBody):
 
 
 @api_router.get("/enquiries")
-async def list_enquiries(user: dict = Depends(get_current_user)):
-    if user.get("role") != "admin":
-        raise HTTPException(status_code=403, detail="Admin only")
+async def list_enquiries(user: dict = Depends(require_admin)):
     items = await db.enquiries.find({}, {"_id": 0}).sort("created_at", -1).to_list(200)
     return {"items": items, "total": len(items)}
 

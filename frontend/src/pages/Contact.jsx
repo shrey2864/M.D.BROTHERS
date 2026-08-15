@@ -4,7 +4,7 @@ import { MapPin, Mail, Phone } from "lucide-react";
 
 const INFO = [
   { icon: MapPin, label: "Atelier", value: "Surat Diamond Bourse, Surat, Gujarat, India" },
-  { icon: Mail, label: "Email", value: "enquiries@shreediamondexports.com" },
+  { icon: Mail, label: "Email", value: "shreydoshi16@gmail.com" },
   { icon: Phone, label: "Phone", value: "+91 261 000 0000" },
 ];
 

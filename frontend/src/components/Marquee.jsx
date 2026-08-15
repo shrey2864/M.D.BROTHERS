@@ -2,7 +2,7 @@ import Marquee from "react-fast-marquee";
 
 const ITEMS = [
   "Beyond Brilliance",
-  "Shree Diamond Exports",
+  "M.D. Brothers",
   "Ethically Sourced",
   "Kimberley Process Certified",
   "Cut With Intent",
