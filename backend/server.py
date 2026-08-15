@@ -385,6 +385,7 @@ async def list_diamonds(
         "price_desc": [("price", -1)],
         "carat_desc": [("carat", -1)],
         "carat_asc": [("carat", 1)],
+        "newest": [("created_at", -1)],
         "featured": [("featured", -1), ("carat", -1)],
     }
     cursor = db.diamonds.find(query, {"_id": 0}).sort(sort_map.get(sort, sort_map["featured"])).limit(limit)

@@ -174,6 +174,7 @@ export default function Catalog() {
               </SelectTrigger>
               <SelectContent className="rounded-none border-white/10 bg-[#0A0A0A]">
                 <SelectItem value="featured">Featured</SelectItem>
+                <SelectItem value="newest">Newest First</SelectItem>
                 <SelectItem value="carat_desc">Carat: High → Low</SelectItem>
                 <SelectItem value="carat_asc">Carat: Low → High</SelectItem>
                 <SelectItem value="price_asc">Price: Low → High</SelectItem>
