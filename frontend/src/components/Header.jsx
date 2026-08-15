@@ -26,7 +26,7 @@ export const Header = () => {
         <Link to="/" data-testid="header-logo-link" className="flex items-center gap-2 group">
           <Gem className="h-4 w-4 text-gold transition-transform duration-500 group-hover:rotate-180" strokeWidth={1.5} />
           <span className="font-serif text-lg tracking-[0.18em] text-white">
-            M.D. <span className="text-gold">BROTHERS</span>
+            M.D.<span className="text-gold">BROTHERS</span>
           </span>
         </Link>
 

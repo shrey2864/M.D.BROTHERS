@@ -8,7 +8,7 @@ export const Footer = () => (
         <div className="flex items-center gap-2">
           <Gem className="h-4 w-4 text-gold" strokeWidth={1.5} />
           <span className="font-serif text-lg tracking-[0.18em] text-white">
-            M.D. <span className="text-gold">BROTHERS</span>
+            M.D.<span className="text-gold">BROTHERS</span>
           </span>
         </div>
         <p className="mt-6 max-w-sm text-sm leading-relaxed text-zinc-500">
@@ -38,7 +38,7 @@ export const Footer = () => (
     </div>
     <div className="border-t border-white/10">
       <div className="mx-auto flex max-w-[1440px] flex-col gap-2 px-6 py-6 font-mono text-[10px] uppercase tracking-[0.25em] text-zinc-600 sm:flex-row sm:justify-between">
-        <span>© {new Date().getFullYear()} M.D. Brothers</span>
+        <span>© {new Date().getFullYear()} M.D.Brothers</span>
         <span>GIA • IGI • HRD Certified Stones</span>
       </div>
     </div>

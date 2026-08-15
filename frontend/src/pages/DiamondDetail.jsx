@@ -129,7 +129,7 @@ export default function DiamondDetail() {
               </div>
             )}
             <a
-              href={waLink(`Hello M.D. Brothers, I'm interested in ${diamond.sku} — ${diamond.carat.toFixed(2)} ct ${diamond.shape} (${diamond.color}/${diamond.clarity}, ${diamond.cut} cut). Please share more details.`)}
+              href={waLink(`Hello M.D.Brothers, I'm interested in ${diamond.sku} — ${diamond.carat.toFixed(2)} ct ${diamond.shape} (${diamond.color}/${diamond.clarity}, ${diamond.cut} cut). Please share more details.`)}
               target="_blank"
               rel="noopener noreferrer"
               data-testid="diamond-whatsapp-button"

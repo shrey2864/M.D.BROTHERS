@@ -4,7 +4,7 @@
 "Im a diamond manufacturer and want to build a website where all people can access through my diamonds and want to build my website similar to Hari krishna exports pvt ltd"
 
 ## Brand
-- Company: M.D. Brothers (real name provided by user, replaces placeholder "Shree Diamond Exports")
+- Company: M.D.Brothers (real name provided by user, replaces placeholder "Shree Diamond Exports")
 - Owner email (enquiry notifications): shreydoshi16@gmail.com — LIVE
 - WhatsApp number: PLACEHOLDER (910000000000) in /app/frontend/src/lib/config.js — user to provide real number
 

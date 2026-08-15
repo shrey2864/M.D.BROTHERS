@@ -53,7 +53,7 @@ export const DiamondCard = ({ diamond, index = 0 }) => {
             onClick={(e) => {
               e.preventDefault();
               window.open(
-                waLink(`Hello M.D. Brothers, I'm interested in ${diamond.sku} — ${diamond.carat.toFixed(2)} ct ${diamond.shape}.`),
+                waLink(`Hello M.D.Brothers, I'm interested in ${diamond.sku} — ${diamond.carat.toFixed(2)} ct ${diamond.shape}.`),
                 "_blank",
                 "noopener,noreferrer"
               );
