@@ -117,7 +117,7 @@ export default function Home() {
           {CHAPTERS.map((c, i) => (
             <div key={c.n} className="sticky" style={{ top: `${96 + i * 28}px` }}>
               <div
-                className={`grid overflow-hidden border border-white/10 bg-[#0A0A0A] md:grid-cols-2 ${i % 2 ? "md:[&>*:first-child]:order-2" : ""}`}
+                className={`grid overflow-hidden border border-white/10 bg-[#0C1E30] md:grid-cols-2 ${i % 2 ? "md:[&>*:first-child]:order-2" : ""}`}
                 data-testid={`manifesto-chapter-${c.n}`}
               >
                 <div className="relative min-h-[300px] overflow-hidden">
@@ -137,7 +137,7 @@ export default function Home() {
       </section>
 
       {/* FEATURED */}
-      <section className="border-t border-white/10 bg-[#080808]" data-testid="featured-section">
+      <section className="border-t border-white/10 bg-[#0A1A2B]" data-testid="featured-section">
         <div className="mx-auto max-w-[1440px] px-6 py-32">
           <div className="flex flex-wrap items-end justify-between gap-6">
             <div>
@@ -155,7 +155,7 @@ export default function Home() {
             </Link>
           </div>
           {locked ? (
-            <div className="mt-16 border border-gold/30 bg-[#0A0A0A] p-14" data-testid="featured-locked">
+            <div className="mt-16 border border-gold/30 bg-[#0C1E30] p-14" data-testid="featured-locked">
               <p className="font-serif text-3xl font-light italic text-gold">The collection is members only.</p>
               <p className="mt-4 max-w-lg text-sm leading-relaxed text-zinc-400">
                 Register with your company and KYC details — once our team
@@ -189,7 +189,7 @@ export default function Home() {
       </section>
 
       {/* CTA */}
-      <section className="border-t border-white/10 bg-[#0A0A0A]" data-testid="cta-section">
+      <section className="border-t border-white/10 bg-[#0C1E30]" data-testid="cta-section">
         <div className="mx-auto max-w-[1440px] px-6 py-32">
           <Overline>Private Enquiries</Overline>
           <MaskedLine inView className="mt-6">

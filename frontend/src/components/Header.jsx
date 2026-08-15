@@ -26,7 +26,7 @@ export const Header = () => {
     <header className="fixed top-0 left-0 right-0 z-50 border-b border-white/10 bg-black/60 backdrop-blur-xl">
       <div className="mx-auto flex max-w-[1440px] items-center justify-between px-6 py-4">
         <Link to="/" data-testid="header-logo-link" className="flex items-center gap-3 group">
-          <img src="/logo.jpg" alt="M.D.Brothers logo" className="h-9 w-9 bg-white object-contain p-0.5 transition-transform duration-500 group-hover:scale-105" />
+          <img src="/logo.png" alt="M.D.Brothers logo" className="h-10 w-auto object-contain transition-transform duration-500 group-hover:scale-105" />
           <span className="font-serif text-lg tracking-[0.18em] text-white">
             M.D.<span className="text-gold">BROTHERS</span>
           </span>

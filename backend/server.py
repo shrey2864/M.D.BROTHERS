@@ -561,7 +561,7 @@ async def admin_set_user_status(user_id: str, body: UserStatusBody, user: dict =
                 'verified and approved by our team.</p>'
                 '<p>You can now sign in to explore our full live inventory, view trade pricing, '
                 'and send enquiries directly from any stone.</p>'
-                f'<p><a href="{escape(login_url)}" style="display:inline-block;background:#CBA153;color:#000;'
+                f'<p><a href="{escape(login_url)}" style="display:inline-block;background:#2E7CB8;color:#fff;'
                 'padding:12px 28px;text-decoration:none;font-size:13px;letter-spacing:2px">SIGN IN TO YOUR ACCOUNT</a></p>'
                 f'<p style="font-size:12px;color:#888;margin-top:24px">Sent by {escape(EMAIL_FROM_NAME)}. '
                 'We never ask for your password or card details by email.</p>'

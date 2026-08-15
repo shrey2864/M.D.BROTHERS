@@ -16,7 +16,7 @@ export const DiamondCard = ({ diamond, index = 0 }) => {
       <Link
         to={`/diamonds/${diamond.diamond_id}`}
         data-testid={`diamond-card-${diamond.sku}`}
-        className="group block border border-white/10 bg-[#0A0A0A] p-4 transition-colors duration-500 hover:border-gold/50"
+        className="group block border border-white/10 bg-[#0C1E30] p-4 transition-colors duration-500 hover:border-gold/50"
       >
         <div className="relative overflow-hidden">
           <img

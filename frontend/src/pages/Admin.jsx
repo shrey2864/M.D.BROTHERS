@@ -154,7 +154,7 @@ export default function Admin() {
         </button>
       </div>
 
-      <div className="mt-12 border border-white/10 bg-[#0A0A0A] p-8" data-testid="stock-feed-card">
+      <div className="mt-12 border border-white/10 bg-[#0C1E30] p-8" data-testid="stock-feed-card">
         <Overline>Stock Feed — API Sync</Overline>
         <p className="mt-3 max-w-2xl text-sm leading-relaxed text-zinc-500">
           Paste the API link (JSON or CSV) from your stock management system.
@@ -188,7 +188,7 @@ export default function Admin() {
       </div>
 
       {form && (
-        <form onSubmit={submit} className="mt-12 border border-gold/30 bg-[#0A0A0A] p-8" data-testid="admin-diamond-form">
+        <form onSubmit={submit} className="mt-12 border border-gold/30 bg-[#0C1E30] p-8" data-testid="admin-diamond-form">
           <div className="mb-8 flex items-center justify-between">
             <Overline>{form.diamond_id ? `Editing ${form.sku}` : "New Diamond"}</Overline>
             <button type="button" onClick={() => setForm(null)} data-testid="admin-form-close-button" aria-label="Close form">
@@ -214,7 +214,7 @@ export default function Admin() {
           </div>
           <div className="mt-8 flex items-center justify-between">
             <label className="flex cursor-pointer items-center gap-3 text-sm text-zinc-400">
-              <input type="checkbox" checked={form.featured} onChange={(e) => set("featured", e.target.checked)} data-testid="admin-featured-checkbox" className="h-4 w-4 accent-[#CBA153]" />
+              <input type="checkbox" checked={form.featured} onChange={(e) => set("featured", e.target.checked)} data-testid="admin-featured-checkbox" className="h-4 w-4 accent-[#2E7CB8]" />
               Feature on homepage
             </label>
             <button type="submit" disabled={saving} data-testid="admin-save-diamond-button"

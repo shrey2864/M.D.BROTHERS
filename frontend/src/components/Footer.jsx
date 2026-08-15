@@ -2,11 +2,11 @@ import { Gem } from "lucide-react";
 import { Link } from "react-router-dom";
 
 export const Footer = () => (
-  <footer className="border-t border-white/10 bg-[#050505]" data-testid="footer">
+  <footer className="border-t border-white/10 bg-[#07131F]" data-testid="footer">
     <div className="mx-auto grid max-w-[1440px] gap-12 px-6 py-16 md:grid-cols-4">
       <div className="md:col-span-2">
         <div className="flex items-center gap-3">
-          <img src="/logo.jpg" alt="M.D.Brothers logo" className="h-9 w-9 bg-white object-contain p-0.5" />
+          <img src="/logo.png" alt="M.D.Brothers logo" className="h-10 w-auto object-contain" />
           <span className="font-serif text-lg tracking-[0.18em] text-white">
             M.D.<span className="text-gold">BROTHERS</span>
           </span>

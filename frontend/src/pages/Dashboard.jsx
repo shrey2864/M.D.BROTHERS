@@ -69,7 +69,7 @@ export default function Dashboard() {
       <div className="mt-12 grid grid-cols-2 gap-4 lg:grid-cols-4" data-testid="dashboard-tiles">
         {tiles.map(({ icon: Icon, label, value, testId }, i) => (
           <Reveal key={label} delay={i * 0.08}>
-            <div className="border border-white/10 bg-[#0A0A0A] p-6 transition-colors duration-300 hover:border-gold/40" data-testid={testId}>
+            <div className="border border-white/10 bg-[#0C1E30] p-6 transition-colors duration-300 hover:border-gold/40" data-testid={testId}>
               <Icon className="h-4 w-4 text-gold" strokeWidth={1.5} />
               <p className="mt-6 font-serif text-4xl font-light text-white">{value.toLocaleString()}</p>
               <p className="mt-2 font-mono text-[10px] uppercase tracking-[0.25em] text-zinc-500">{label}</p>
@@ -122,7 +122,7 @@ export default function Dashboard() {
 
         {/* Personal desk card */}
         <div className="lg:sticky lg:top-28 lg:self-start">
-          <Reveal className="border border-gold/30 bg-[#0A0A0A] p-8" data-testid="dashboard-desk-card">
+          <Reveal className="border border-gold/30 bg-[#0C1E30] p-8" data-testid="dashboard-desk-card">
             <Overline>Your M.D.Brothers Desk</Overline>
             <p className="mt-4 font-serif text-2xl font-light text-white">Direct line to our sales team</p>
             <p className="mt-3 text-sm leading-relaxed text-zinc-400">

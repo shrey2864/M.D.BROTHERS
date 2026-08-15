@@ -9,7 +9,7 @@ const ITEMS = [
 ];
 
 export const EditorialMarquee = () => (
-  <div className="border-y border-white/10 bg-[#050505] py-8" aria-hidden="true">
+  <div className="border-y border-white/10 bg-[#07131F] py-8" aria-hidden="true">
     <Marquee speed={30} gradient={false}>
       {ITEMS.concat(ITEMS).map((item, i) => (
         <span key={i} className="mx-8 flex items-center gap-16">

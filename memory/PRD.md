@@ -51,6 +51,11 @@
 - Our Story rewritten without place names (customer-friendly): "Handpicked At Origin", "The Scaife & The Hand" (0.18 ct to 10 ct+ range mentioned), "Certified, Without Exception", "A Quiet Global Trust"
 - Per-diamond downloads: certificate PDF link, 360° video link, image download — shown on diamond detail page; certificate_url/video_url fields in DiamondBody, admin form, and stock-feed mapping (video/video_url, cert_url/report_url etc.)
 
+### 2026-08-15 (round 6 — logo + Midnight Sapphire theme)
+- Official M.D.Brothers logo integrated (white background removed → transparent PNG at /app/frontend/public/logo.png) in header + footer
+- Full retheme to "Midnight Sapphire" matching the logo: bg #07131F, surfaces #0C1E30/#0A1A2B, accent ice blue #5DA9E4 / sapphire #2E7CB8 (tailwind `gold` tokens remapped to blue), approval email button now sapphire
+- Customer Dashboard at /dashboard: tiles (New Goods 7d, Total Stones, Featured, My Enquiries), featured stones strip, "Just Uploaded" latest grid, "Your M.D.Brothers Desk" contact card (WhatsApp + email); login now lands on /dashboard; GET /api/dashboard (approved-only)
+
 ### 2026-08-15 (round 5 — KYC PDF upload, business type, HK-style search page)
 - Registration: added "Registering as" selector (Owner / Sales Representative / Trader / Manufacturer) + mandatory KYC PDF upload (max 10 MB, object storage via Emergent objstore, path mdbrothers/kyc/{user_id}/{uuid}.pdf)
 - Admin buyers table: new Type column + KYC Doc PDF download button (GET /api/users/kyc-document/{user_id}, admin-only)

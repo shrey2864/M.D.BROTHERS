@@ -6,25 +6,25 @@
 
 @layer base {
     :root {
-        --background: 0 0% 2%;
-        --foreground: 0 0% 96%;
-        --card: 0 0% 4%;
-        --card-foreground: 0 0% 96%;
-        --popover: 0 0% 4%;
-        --popover-foreground: 0 0% 96%;
-        --primary: 39 47% 56%;
-        --primary-foreground: 0 0% 4%;
-        --secondary: 0 0% 8%;
-        --secondary-foreground: 0 0% 90%;
-        --muted: 0 0% 10%;
-        --muted-foreground: 240 5% 65%;
-        --accent: 39 47% 56%;
-        --accent-foreground: 0 0% 4%;
+        --background: 207 63% 7%;
+        --foreground: 204 33% 96%;
+        --card: 207 50% 12%;
+        --card-foreground: 204 33% 96%;
+        --popover: 207 50% 12%;
+        --popover-foreground: 204 33% 96%;
+        --primary: 204 62% 45%;
+        --primary-foreground: 207 63% 7%;
+        --secondary: 207 40% 14%;
+        --secondary-foreground: 204 30% 90%;
+        --muted: 207 35% 15%;
+        --muted-foreground: 208 18% 62%;
+        --accent: 204 62% 45%;
+        --accent-foreground: 207 63% 7%;
         --destructive: 0 62.8% 50%;
         --destructive-foreground: 0 0% 98%;
-        --border: 0 0% 14%;
-        --input: 0 0% 16%;
-        --ring: 39 47% 56%;
+        --border: 207 30% 18%;
+        --input: 207 30% 22%;
+        --ring: 206 72% 63%;
         --radius: 0rem;
     }
 }
@@ -34,7 +34,7 @@
         @apply border-border;
     }
     html {
-        background: #050505;
+        background: #07131F;
     }
     body {
         @apply bg-background text-foreground font-sans;
@@ -42,20 +42,20 @@
         -moz-osx-font-smoothing: grayscale;
     }
     ::selection {
-        background: #cba153;
-        color: #050505;
+        background: #5da9e4;
+        color: #07131F;
     }
     ::-webkit-scrollbar {
         width: 6px;
     }
     ::-webkit-scrollbar-track {
-        background: #050505;
+        background: #07131F;
     }
     ::-webkit-scrollbar-thumb {
-        background: #2a2a2a;
+        background: #1c3a55;
     }
     ::-webkit-scrollbar-thumb:hover {
-        background: #cba153;
+        background: #5da9e4;
     }
 }
 

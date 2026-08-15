@@ -39,7 +39,7 @@ export default function Contact() {
           </div>
         </div>
 
-        <Reveal delay={0.2} className="border border-white/10 bg-[#0A0A0A] p-10 lg:p-14">
+        <Reveal delay={0.2} className="border border-white/10 bg-[#0C1E30] p-10 lg:p-14">
           <Overline className="mb-10">Send an Enquiry</Overline>
           <EnquiryForm testIdPrefix="contact-enquiry" />
         </Reveal>

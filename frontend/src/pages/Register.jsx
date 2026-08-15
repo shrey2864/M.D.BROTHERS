@@ -56,7 +56,7 @@ export default function Register() {
         </p>
 
         {done ? (
-          <div className="mt-12 border border-gold/40 bg-[#0A0A0A] p-10" data-testid="register-success">
+          <div className="mt-12 border border-gold/40 bg-[#0C1E30] p-10" data-testid="register-success">
             <p className="font-serif text-2xl italic text-gold">Application received.</p>
             <p className="mt-4 text-sm leading-relaxed text-zinc-400">
               Thank you, {form.name}. We are verifying your company and KYC

@@ -182,7 +182,7 @@ export default function Catalog() {
               <SelectTrigger data-testid="catalog-sort-select" className="w-[180px] rounded-none border-white/20 bg-transparent font-mono text-[11px] uppercase tracking-[0.15em] text-zinc-300">
                 <SelectValue />
               </SelectTrigger>
-              <SelectContent className="rounded-none border-white/10 bg-[#0A0A0A]">
+              <SelectContent className="rounded-none border-white/10 bg-[#0C1E30]">
                 <SelectItem value="featured">Featured</SelectItem>
                 <SelectItem value="newest">Newest First</SelectItem>
                 <SelectItem value="carat_desc">Carat: High → Low</SelectItem>
