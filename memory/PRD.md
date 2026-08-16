@@ -51,6 +51,9 @@
 - Our Story rewritten without place names (customer-friendly): "Handpicked At Origin", "The Scaife & The Hand" (0.18 ct to 10 ct+ range mentioned), "Certified, Without Exception", "A Quiet Global Trust"
 - Per-diamond downloads: certificate PDF link, 360° video link, image download — shown on diamond detail page; certificate_url/video_url fields in DiamondBody, admin form, and stock-feed mapping (video/video_url, cert_url/report_url etc.)
 
+### 2026-08-16
+- Favicon from logo: cropped transparent logo mark → favicon.png (64px) + apple-touch-icon.png (180px), linked in index.html, theme-color #07131F
+
 ### 2026-08-15 (round 8 — bugfix + polish)
 - FIXED Collection crash ("Cannot read properties of undefined (reading 'includes')") — filters state was missing polish/symmetry keys; added to state init + params loop
 - Collection link removed from nav (still reachable via Search results)
