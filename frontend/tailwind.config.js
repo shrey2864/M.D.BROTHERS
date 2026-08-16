@@ -8,8 +8,8 @@ module.exports = {
     theme: {
         extend: {
             fontFamily: {
-                serif: ['"Cormorant Garamond"', 'serif'],
-                sans: ['Manrope', 'sans-serif'],
+                serif: ['"Inter Tight"', 'Inter', '"Segoe UI"', 'sans-serif'],
+                sans: ['Inter', '"Segoe UI"', 'sans-serif'],
                 mono: ['"JetBrains Mono"', 'monospace'],
             },
             colors: {
