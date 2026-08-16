@@ -5,7 +5,7 @@ import { Search, RotateCcw } from "lucide-react";
 import { Overline, MaskedLine } from "@/components/Reveal";
 import { useAuth } from "@/context/AuthContext";
 
-const SHAPE_ICONS = {
+export const SHAPE_ICONS = {
   Round: [
     <circle key="a" cx="12" cy="12" r="8.5" />,
     <circle key="b" cx="12" cy="12" r="4.5" />,
@@ -90,7 +90,7 @@ const QUICK_TOGGLES = [
   { key: "nobgm", label: "NO BGM", pills: { fluorescence: ["None"] } },
 ];
 
-const ShapeIcon = ({ shape, active }) => (
+export const ShapeIcon = ({ shape, active }) => (
   <svg viewBox="0 0 24 24" className={`h-9 w-9 ${active ? "text-black" : "text-zinc-400"}`}
     fill="none" stroke="currentColor" strokeWidth="1.1" aria-hidden="true">
     {SHAPE_ICONS[shape]}

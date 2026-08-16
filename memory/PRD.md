@@ -53,6 +53,9 @@
 
 ### 2026-08-16
 - Favicon from logo: cropped transparent logo mark → favicon.png (64px) + apple-touch-icon.png (180px), linked in index.html, theme-color #07131F
+- Fonts: site-wide Inter (body) + Inter Tight (display headings) with Segoe UI fallback, replaces Cormorant Garamond/Manrope
+- Admin login changed to owner's: shreydoshi16@gmail.com / Sd246810 (shrey@mdbrothers.in was briefly set then reverted per user); old test admin deleted
+- Match Pair search at /match-pair (nav: Match Pair, members-only): shape picker, carat from/to, color/clarity/lab filters → GET /api/match-pairs pairs stones with same shape+color+clarity and carat within max(0.03ct, 2%); pair cards show both stones, total carat, combined price, WhatsApp enquiry; seed generates 4 guaranteed twin pairs (MDB-2000/2002/2004/2006)
 
 ### 2026-08-15 (round 8 — bugfix + polish)
 - FIXED Collection crash ("Cannot read properties of undefined (reading 'includes')") — filters state was missing polish/symmetry keys; added to state init + params loop

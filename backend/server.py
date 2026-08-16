@@ -393,6 +393,16 @@ def build_seed_diamonds() -> List[dict]:
             "source": "sample",
             "created_at": datetime.now(timezone.utc).isoformat(),
         })
+
+    # guarantee demo match-pairs: clone every other stone of the first 8 with near-identical specs
+    for k in range(0, 8, 2):
+        twin = dict(diamonds[k])
+        twin["diamond_id"] = str(uuid.uuid4())
+        twin["sku"] = f"MDB-{2000 + k}"
+        twin["carat"] = round(diamonds[k]["carat"] + 0.01, 2)
+        twin["price"] = diamonds[k]["price"] + 120
+        twin["featured"] = False
+        diamonds.append(twin)
     return diamonds
 
 
@@ -463,6 +473,68 @@ async def list_diamonds(
     items = await cursor.to_list(limit)
     total = await db.diamonds.count_documents(query)
     return {"items": items, "total": total}
+
+
+@api_router.get("/match-pairs")
+async def match_pairs(
+    shape: Optional[str] = None,
+    min_carat: Optional[float] = None,
+    max_carat: Optional[float] = None,
+    color: Optional[str] = None,
+    clarity: Optional[str] = None,
+    lab: Optional[str] = None,
+    user: dict = Depends(require_approved),
+):
+    query = {}
+    if shape:
+        query["shape"] = shape
+    if color:
+        if color == "Fancy":
+            query["color"] = {"$regex": "^Fancy"}
+        elif color == "O-Z":
+            query["color"] = {"$regex": "^[O-Z]"}
+        else:
+            query["color"] = color
+    if clarity:
+        query["clarity"] = clarity
+    if lab:
+        query["certification"] = lab
+    if min_carat is not None or max_carat is not None:
+        query["carat"] = {}
+        if min_carat is not None:
+            query["carat"]["$gte"] = min_carat
+        if max_carat is not None:
+            query["carat"]["$lte"] = max_carat
+
+    stones = await db.diamonds.find(query, {"_id": 0}).to_list(500)
+    groups = {}
+    for d in stones:
+        groups.setdefault((d["shape"], d["color"], d["clarity"]), []).append(d)
+
+    pairs = []
+    for stones_group in groups.values():
+        stones_group.sort(key=lambda x: x["carat"])
+        used = set()
+        for i in range(len(stones_group)):
+            if i in used:
+                continue
+            for j in range(i + 1, len(stones_group)):
+                if j in used:
+                    continue
+                diff = abs(stones_group[i]["carat"] - stones_group[j]["carat"])
+                if diff <= max(0.03, 0.02 * stones_group[j]["carat"]):
+                    pairs.append({
+                        "a": stones_group[i],
+                        "b": stones_group[j],
+                        "total_carat": round(stones_group[i]["carat"] + stones_group[j]["carat"], 2),
+                        "carat_diff": round(diff, 2),
+                        "total_price": stones_group[i].get("price", 0) + stones_group[j].get("price", 0),
+                    })
+                    used.add(i)
+                    used.add(j)
+                    break
+    pairs.sort(key=lambda p: p["total_carat"], reverse=True)
+    return {"pairs": pairs[:24], "total": len(pairs)}
 
 
 @api_router.get("/diamonds/{diamond_id}")

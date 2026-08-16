@@ -15,6 +15,7 @@ import Contact from "@/pages/Contact";
 import Admin from "@/pages/Admin";
 import SearchSelect from "@/pages/SearchSelect";
 import Dashboard from "@/pages/Dashboard";
+import MatchPair from "@/pages/MatchPair";
 
 const ScrollManager = () => {
   const { pathname } = useLocation();
@@ -56,6 +57,7 @@ function App() {
               <Route path="/admin" element={<Admin />} />
               <Route path="/search" element={<SearchSelect />} />
               <Route path="/dashboard" element={<Dashboard />} />
+              <Route path="/match-pair" element={<MatchPair />} />
             </Routes>
           </main>
           <Footer />
