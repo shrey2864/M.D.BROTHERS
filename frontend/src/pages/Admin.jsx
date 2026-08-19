@@ -33,12 +33,16 @@ export default function Admin() {
   const [lastSync, setLastSync] = useState(null);
   const [syncing, setSyncing] = useState(false);
   const [buyers, setBuyers] = useState([]);
+  const [enquiries, setEnquiries] = useState([]);
 
   const load = () =>
     api.get("/diamonds", { params: { limit: 200 } }).then((r) => setDiamonds(r.data.items)).catch(() => {});
 
   const loadBuyers = () =>
     api.get("/admin/users").then((r) => setBuyers(r.data.items)).catch(() => {});
+
+  const loadEnquiries = () =>
+    api.get("/enquiries").then((r) => setEnquiries(r.data.items)).catch(() => {});
 
   const setBuyerStatus = async (b, status) => {
     try {
@@ -58,6 +62,7 @@ export default function Admin() {
     if (user && user.role === "admin") {
       load();
       loadBuyers();
+      loadEnquiries();
       api.get("/stock-feed").then((r) => {
         setFeed((f) => ({ ...f, url: r.data.url || "" }));
         setLastSync(r.data.last_sync || null);
@@ -253,6 +258,41 @@ export default function Admin() {
             ))}
           </tbody>
         </table>
+      </div>
+
+      <div className="mt-16">
+        <div className="flex items-end justify-between">
+          <div>
+            <Overline>Enquiries Inbox</Overline>
+            <h2 className="mt-3 font-serif text-3xl font-light text-white">Buyer <span className="italic text-gold">enquiries.</span></h2>
+          </div>
+          <p className="font-mono text-[11px] uppercase tracking-[0.25em] text-zinc-500" data-testid="enquiries-count">{enquiries.length} total</p>
+        </div>
+        <div className="mt-6 space-y-3" data-testid="enquiries-inbox">
+          {enquiries.map((q) => (
+            <div key={q.enquiry_id} className="border border-white/10 bg-[#0C1E30] p-5" data-testid={`enquiry-${q.enquiry_id}`}>
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="flex flex-wrap items-center gap-4">
+                  <p className="text-sm text-white">{q.name}</p>
+                  <a href={`mailto:${q.email}`} className="font-mono text-[11px] text-gold hover:underline" data-testid={`enquiry-email-${q.enquiry_id}`}>{q.email}</a>
+                  {q.phone && <span className="font-mono text-[11px] text-zinc-500">{q.phone}</span>}
+                  {q.diamond_sku && (
+                    <span className="border border-gold/40 px-2 py-0.5 font-mono text-[10px] uppercase tracking-[0.15em] text-gold">{q.diamond_sku}</span>
+                  )}
+                </div>
+                <p className="font-mono text-[10px] uppercase tracking-[0.15em] text-zinc-600">
+                  {new Date(q.created_at).toLocaleString("en-IN", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}
+                </p>
+              </div>
+              <p className="mt-3 text-sm leading-relaxed text-zinc-400">{q.message}</p>
+            </div>
+          ))}
+          {enquiries.length === 0 && (
+            <div className="border border-white/10 py-12 text-center" data-testid="enquiries-empty">
+              <p className="font-serif text-xl italic text-zinc-500">No enquiries yet.</p>
+            </div>
+          )}
+        </div>
       </div>
 
       <div className="mt-24">

@@ -57,6 +57,11 @@
 - Admin login changed to owner's: shreydoshi16@gmail.com / Sd246810 (shrey@mdbrothers.in was briefly set then reverted per user); old test admin deleted
 - Match Pair search at /match-pair (nav: Match Pair, members-only): shape picker, carat from/to, color/clarity/lab filters → GET /api/match-pairs pairs stones with same shape+color+clarity and carat within max(0.03ct, 2%); pair cards show both stones, total carat, combined price, WhatsApp enquiry; seed generates 4 guaranteed twin pairs (MDB-2000/2002/2004/2006)
 
+### 2026-08-19
+- WhatsApp number set to real one: +91 84520 23026 (frontend/src/lib/config.js)
+- Admin nav cleanup: admin users see only Dashboard / Search / Match Pair / Inventory — Our Story & Contact hidden for admin role
+- Enquiries Inbox on /admin: lists all buyer enquiries (name, email, phone, SKU badge, message, timestamp), admin-only GET /api/enquiries; verified with live test enquiry (also emailed owner)
+
 ### 2026-08-15 (round 8 — bugfix + polish)
 - FIXED Collection crash ("Cannot read properties of undefined (reading 'includes')") — filters state was missing polish/symmetry keys; added to state init + params loop
 - Collection link removed from nav (still reachable via Search results)

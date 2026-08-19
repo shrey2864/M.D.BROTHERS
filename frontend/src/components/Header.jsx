@@ -7,8 +7,8 @@ const LINKS = [
   { to: "/dashboard", label: "Dashboard", authOnly: true },
   { to: "/search", label: "Search", authOnly: true },
   { to: "/match-pair", label: "Match Pair", authOnly: true },
-  { to: "/#story", label: "Our Story", anchor: true },
-  { to: "/contact", label: "Contact" },
+  { to: "/#story", label: "Our Story", anchor: true, adminHide: true },
+  { to: "/contact", label: "Contact", adminHide: true },
 ];
 
 export const Header = () => {
@@ -33,7 +33,7 @@ export const Header = () => {
         </Link>
 
         <nav className="hidden items-center gap-10 md:flex" data-testid="header-nav">
-          {LINKS.filter((l) => !l.authOnly || user).map((l) =>
+          {LINKS.filter((l) => (!l.authOnly || user) && !(l.adminHide && user?.role === "admin")).map((l) =>
             l.anchor ? (
               <a
                 key={l.label}
@@ -100,7 +100,7 @@ export const Header = () => {
       {open && (
         <div className="border-t border-white/10 bg-black px-6 py-6 md:hidden" data-testid="header-mobile-menu">
           <div className="flex flex-col gap-5">
-            {LINKS.filter((l) => !l.authOnly || user).map((l) => (
+            {LINKS.filter((l) => (!l.authOnly || user) && !(l.adminHide && user?.role === "admin")).map((l) => (
               <Link
                 key={l.label}
                 to={l.to}
