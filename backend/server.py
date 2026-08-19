@@ -483,6 +483,7 @@ async def match_pairs(
     color: Optional[str] = None,
     clarity: Optional[str] = None,
     lab: Optional[str] = None,
+    limit: int = Query(default=200, le=500),
     user: dict = Depends(require_approved),
 ):
     query = {}
@@ -506,7 +507,7 @@ async def match_pairs(
         if max_carat is not None:
             query["carat"]["$lte"] = max_carat
 
-    stones = await db.diamonds.find(query, {"_id": 0}).to_list(500)
+    stones = await db.diamonds.find(query, {"_id": 0}).sort("carat", 1).limit(limit).to_list(limit)
     groups = {}
     for d in stones:
         groups.setdefault((d["shape"], d["color"], d["clarity"]), []).append(d)
@@ -920,6 +921,7 @@ async def startup():
     await db.users.create_index("user_id", unique=True)
     await db.login_attempts.create_index("identifier")
     await db.diamonds.create_index("diamond_id", unique=True)
+    await db.diamonds.create_index([("shape", 1), ("color", 1), ("clarity", 1), ("carat", 1)])
     await seed_admin()
     await seed_demo_buyer()
     if await db.diamonds.count_documents({}) == 0:
@@ -939,10 +941,17 @@ async def shutdown_db_client():
 
 app.include_router(api_router)
 
+_cors_env = os.environ.get("CORS_ORIGINS", "")
+_cors_origins = [o.strip() for o in _cors_env.split(",") if o.strip() and o.strip() != "*"]
+if os.environ.get("FRONTEND_URL"):
+    _cors_origins.append(os.environ["FRONTEND_URL"].rstrip("/"))
+_cors_origins.append("http://localhost:3000")
+
 app.add_middleware(
     CORSMiddleware,
     allow_credentials=True,
-    allow_origins=[o for o in [os.environ.get("FRONTEND_URL"), "http://localhost:3000"] if o],
+    allow_origins=_cors_origins,
+    allow_origin_regex=r"https://.*\.(emergent\.host|emergentagent\.com)$",
     allow_methods=["*"],
     allow_headers=["*"],
 )
