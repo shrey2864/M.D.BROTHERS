@@ -176,14 +176,23 @@ export default function Catalog() {
             </AccordionItem>
           </Accordion>
         </aside>
-
-        {/* Results */}
-        <div>
-          <div className="mb-8 flex items-center justify-between">
-            <p className="font-mono text-[11px] uppercase tracking-[0.25em] text-zinc-500" data-testid="catalog-results-count">
-              {loading ? "Searching…" : `${data.total} stones`}
-            </p>
-            <Select value={sort} onValueChange={setSort}>
+        )}
+ {/* Results */}
+<div>
+  <div className="mb-8 flex items-center justify-between">
+    <div className="flex items-center gap-4">
+      <p className="font-mono text-[11px] uppercase tracking-[0.25em] text-zinc-500" data-testid="catalog-results-count">
+        {loading ? "Searching…" : `${data.total} stones`}
+      </p>
+      <button
+        onClick={() => setShowFilters((s) => !s)}
+        data-testid="modify-search-button"
+        className="border border-white/20 px-4 py-2 font-mono text-[10px] uppercase tracking-[0.2em] text-zinc-300 transition-colors hover:border-gold hover:text-gold active:scale-95"
+      >
+        {showFilters ? "Hide Filters" : "Modify Search"}
+      </button>
+    </div>
+    <Select value={sort} onValueChange={setSort}>
               <SelectTrigger data-testid="catalog-sort-select" className="w-[180px] rounded-none border-white/20 bg-transparent font-mono text-[11px] uppercase tracking-[0.15em] text-zinc-300">
                 <SelectValue />
               </SelectTrigger>
