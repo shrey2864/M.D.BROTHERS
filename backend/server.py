@@ -918,13 +918,6 @@ async def startup():
     if await db.diamonds.count_documents({}) == 0:
         await db.diamonds.insert_many(build_seed_diamonds())
         logger.info("Seeded 36 diamonds")
-    try:
-        await asyncio.to_thread(init_storage)
-        logger.info("Object storage initialized")
-    except Exception as e:
-        logger.error(f"Storage init failed: {e}")
-
-
 @app.on_event("shutdown")
 async def shutdown_db_client():
     client.close()
