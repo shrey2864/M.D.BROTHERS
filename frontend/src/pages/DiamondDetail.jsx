@@ -93,6 +93,7 @@ export default function DiamondDetail() {
         {/* Sticky image */}
         <div className="lg:sticky lg:top-28 lg:self-start">
           <Reveal>
+                       <div className="relative overflow-hidden border border-white/10"> 
                          {diamond.video_url ? (
                 <iframe
                   src={diamond.video_url}
