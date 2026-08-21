@@ -744,17 +744,17 @@ def map_feed_record(rec: dict) -> Optional[dict]:
         "carat": round(carat, 2),
         "cut": str(_pick(rec, "cut", "cut_grade") or "Excellent").strip().title(),
         "color": str(_pick(rec, "color", "colour", "col") or "G").strip().upper(),
-        "clarity": str(_pick(rec, "clarity", "clar") or "VS1").strip().upper(),
+        "clarity": str(_pick(rec, "clarity", "clar", "purity") or "VS1").strip().upper(),
         "polish": str(_pick(rec, "polish", "pol") or "Excellent").strip().title(),
-        "symmetry": str(_pick(rec, "symmetry", "sym") or "Excellent").strip().title(),
-        "fluorescence": str(_pick(rec, "fluorescence", "fluor", "fluo") or "None").strip().title(),
+        "symmetry": str(_pick(rec, "symmetry", "sym", "symm") or "Excellent").strip().title(),
+        "fluorescence": str(_pick(rec, "fluorescence", "fluor", "fluo", "fls") or "None").strip().title(),
         "certification": str(_pick(rec, "certification", "certificate", "lab", "cert") or "GIA").strip().upper(),
-        "image": _pick(rec, "image", "image_url", "photo", "picture", "img") or DIAMOND_IMAGES[0],
+        "image": _pick(rec, "image", "image_url", "photo", "picture", "img", "image_link") or DIAMOND_IMAGES[0],
         "video_url": _pick(rec, "video", "video_url", "video_link"),
         "certificate_url": _pick(rec, "certificate_url", "cert_url", "cert_link", "certificate_pdf", "report_url", "cert_pdf"),
         "source": "feed",
     }
-    price = _to_float(_pick(rec, "price", "price_usd", "total_price", "amount", "value", "total"))
+    price = _to_float(_pick(rec, "price", "price_usd", "total_price", "amount", "value", "total", "rate", "net_value"))
     if price is not None:
         doc["price"] = price
     return doc
@@ -777,11 +777,14 @@ async def sync_stock_feed(user: dict = Depends(require_admin)):
     text = resp.text.strip()
     if "json" in resp.headers.get("content-type", "") or text.startswith(("[", "{")):
         data = resp.json()
-        if isinstance(data, dict):
-            for k in ("items", "data", "diamonds", "results", "stock"):
-                if isinstance(data.get(k), list):
-                    data = data[k]
-                    break
+         if isinstance(data, dict):
+            if isinstance(data.get("GetStockResult"), dict) and isinstance(data["GetStockResult"].get("Data"), list):
+                data = data["GetStockResult"]["Data"]
+            else:
+                for k in ("items", "data", "diamonds", "results", "stock"):
+                    if isinstance(data.get(k), list):
+                        data = data[k]
+                        break
         if isinstance(data, list):
             records = data
     else:
