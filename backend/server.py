@@ -740,7 +740,7 @@ def map_feed_record(rec: dict) -> Optional[dict]:
         return None
     doc = {
         "sku": str(sku).strip(),
-        "shape": str(shape).strip().capitalize(),
+        "shape": SHAPE_MAP.get(str(shape).strip().upper(), str(shape).strip().capitalize()),
         "carat": round(carat, 2),
         "cut": str(_pick(rec, "cut", "cut_grade") or "Excellent").strip().title(),
         "color": str(_pick(rec, "color", "colour", "col") or "G").strip().upper(),
