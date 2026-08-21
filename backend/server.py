@@ -724,7 +724,19 @@ def _pick(rec: dict, *keys):
             return v
     return None
 
-
+SHAPE_MAP = {
+    "RD": "Round", "RND": "Round", "ROUND": "Round",
+    "PR": "Princess", "PRN": "Princess",
+    "OV": "Oval",
+    "CU": "Cushion", "CUS": "Cushion",
+    "EM": "Emerald",
+    "PE": "Pear", "PER": "Pear",
+    "MQ": "Marquise", "MAR": "Marquise",
+    "RAD": "Radiant",
+    "HT": "Heart",
+    "AS": "Asscher",
+    "CB": "Cushion Brilliant",
+}
 def _to_float(v):
     try:
         return float(str(v).replace(",", "").replace("$", "").strip())
