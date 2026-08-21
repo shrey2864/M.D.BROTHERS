@@ -19,14 +19,24 @@ export const DiamondCard = ({ diamond, index = 0 }) => {
         className="group block border border-white/10 bg-[#0C1E30] p-4 transition-colors duration-500 hover:border-gold/50"
       >
         <div className="relative overflow-hidden">
-          <img
-            src={diamond.image}
-            alt={`${diamond.shape} diamond ${diamond.sku}`}
-            loading="lazy"
-            className="aspect-square w-full object-cover transition-transform duration-700 ease-out group-hover:scale-105"
-          />
-          <div className="absolute inset-0 bg-black/20 transition-opacity duration-500 group-hover:opacity-0" />
-        </div>
+  {diamond.video_url ? (
+    <iframe
+      src={diamond.video_url}
+      title={`${diamond.shape} diamond ${diamond.sku}`}
+      loading="lazy"
+      className="aspect-square w-full border-0 transition-transform duration-700 ease-out group-hover:scale-105"
+      allowFullScreen
+    />
+  ) : (
+    <img
+      src={diamond.image}
+      alt={`${diamond.shape} diamond ${diamond.sku}`}
+      loading="lazy"
+      className="aspect-square w-full object-cover transition-transform duration-700 ease-out group-hover:scale-105"
+    />
+  )}
+  <div className="absolute inset-0 bg-black/20 transition-opacity duration-500 group-hover:opacity-0" />
+</div>
         <div className="mt-5 flex items-start justify-between gap-3">
           <div>
             <p className="font-mono text-[10px] uppercase tracking-[0.25em] text-zinc-500">{diamond.sku}</p>
