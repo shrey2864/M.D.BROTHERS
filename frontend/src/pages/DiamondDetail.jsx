@@ -183,7 +183,7 @@ export default function DiamondDetail() {
                   Video on request
                 </span>
               )}
-              <a href={diamond.image} target="_blank" rel="noopener noreferrer"
+             <a href={diamond.image || diamond.video_url} target="_blank" rel="noopener noreferrer"
                 download data-testid="download-image-button"
                 className="flex items-center gap-2 border border-white/20 px-5 py-3 font-mono text-[10px] uppercase tracking-[0.2em] text-white transition-colors duration-300 hover:border-gold hover:text-gold active:scale-95">
                 <ImageIcon className="h-4 w-4" strokeWidth={1.5} />
