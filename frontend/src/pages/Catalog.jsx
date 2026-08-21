@@ -39,6 +39,7 @@ export default function Catalog() {
   const [q, setQ] = useState("");
   const [data, setData] = useState({ items: [], total: 0 });
   const [loading, setLoading] = useState(true);
+  const [showFilters, setShowFilters] = useState(false);
 
   const toggle = (key, value) =>
     setFilters((f) => ({
@@ -121,9 +122,10 @@ export default function Catalog() {
         </p>
       </Reveal>
 
-      <div className="mt-16 grid gap-12 lg:grid-cols-[260px_1fr]">
+       <div className={`mt-16 grid gap-12 ${showFilters ? "lg:grid-cols-[260px_1fr]" : "grid-cols-1"}`}>
         {/* Filters */}
-        <aside className="lg:sticky lg:top-28 lg:self-start" data-testid="catalog-filters">
+         {showFilters && (
+      <aside className="lg:sticky lg:top-28 lg:self-start" data-testid="catalog-filters">
           <div className="relative mb-8">
             <Search className="absolute left-0 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-600" strokeWidth={1.5} />
             <input
