@@ -93,10 +93,19 @@ export default function DiamondDetail() {
         {/* Sticky image */}
         <div className="lg:sticky lg:top-28 lg:self-start">
           <Reveal>
-            <div className="relative overflow-hidden border border-white/10">
-              <img src={diamond.image} alt={`${diamond.shape} diamond ${diamond.sku}`}
-                className="aspect-square w-full object-cover" data-testid="diamond-image" />
-              <div className="absolute inset-0 bg-black/20" />
+                         {diamond.video_url ? (
+                <iframe
+                  src={diamond.video_url}
+                  title={`${diamond.shape} diamond ${diamond.sku}`}
+                  className="aspect-square w-full border-0"
+                  allowFullScreen
+                  data-testid="diamond-image"
+                />
+              ) : (
+                <img src={diamond.image} alt={`${diamond.shape} diamond ${diamond.sku}`}
+                  className="aspect-square w-full object-cover" data-testid="diamond-image" />
+              )}
+              <div className="absolute inset-0 bg-black/20 pointer-events-none" />
               <span className="absolute left-4 top-4 border border-white/20 bg-black/60 px-3 py-1 font-mono text-[10px] uppercase tracking-[0.25em] text-white backdrop-blur">
                 {diamond.certification} Certified
               </span>
