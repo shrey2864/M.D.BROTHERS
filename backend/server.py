@@ -776,17 +776,17 @@ async def sync_stock_feed(user: dict = Depends(require_admin)):
     records = []
     text = resp.text.strip()
     if "json" in resp.headers.get("content-type", "") or text.startswith(("[", "{")):
-        data = resp.json()
-         if isinstance(data, dict):
-            if isinstance(data.get("GetStockResult"), dict) and isinstance(data["GetStockResult"].get("Data"), list):
-                data = data["GetStockResult"]["Data"]
-            else:
-                for k in ("items", "data", "diamonds", "results", "stock"):
-                    if isinstance(data.get(k), list):
-                        data = data[k]
-                        break
-        if isinstance(data, list):
-            records = data
+            data = resp.json()
+    if isinstance(data, dict):
+        if isinstance(data.get("GetStockResult"), dict) and isinstance(data["GetStockResult"].get("Data"), list):
+            data = data["GetStockResult"]["Data"]
+        else:
+            for k in ("items", "data", "diamonds", "results", "stock"):
+                if isinstance(data.get(k), list):
+                    data = data[k]
+                    break
+    if isinstance(data, list):
+        records = data
     else:
         records = list(csv.DictReader(io.StringIO(text)))
     if not records:
