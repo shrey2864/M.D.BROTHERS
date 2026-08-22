@@ -222,7 +222,6 @@ const toggleCaratRange = (range) => {
           if (caratRanges.length) {
         params.set("carat_ranges", caratRanges.map((r) => `${r[0]}-${r[1]}`).join(","));
       }
-    }
     Object.entries(pills).forEach(([k, v]) => {
       if (v.length) params.set(k, v.join(","));
     });
