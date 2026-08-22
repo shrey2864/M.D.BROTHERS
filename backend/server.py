@@ -406,6 +406,7 @@ async def list_diamonds(
     clarity: Optional[str] = None,
     min_carat: Optional[float] = None,
     max_carat: Optional[float] = None,
+    carat_ranges: Optional[str] = None,
     fluorescence: Optional[str] = None,
     lab: Optional[str] = None,
     polish: Optional[str] = None,
@@ -443,12 +444,22 @@ async def list_diamonds(
         query["symmetry"] = {"$in": symmetry.split(",")}
     if lab:
         query["certification"] = {"$in": lab.split(",")}
-    if min_carat is not None or max_carat is not None:
-        query["carat"] = {}
-        if min_carat is not None:
-            query["carat"]["$gte"] = min_carat
-        if max_carat is not None:
-            query["carat"]["$lte"] = max_carat
+    if carat_ranges:
+        or_conds = []
+        for part in carat_ranges.split(","):
+            try:
+                 lo, hi = part.split("-")
+                 or_conds.append({"carat": {"$gte": float(lo), "$lte": float(hi)}})
+            except (ValueError, AttributeError):
+                    continue
+         if or_conds:
+             query.setdefault("$and", []).append({"$or": or_conds})
+     elif min_carat is not None or max_carat is not None:
+          query["carat"] = {}
+          if min_carat is not None:
+              query["carat"]["$gte"] = min_carat
+          if max_carat is not None:
+              query["carat"]["$lte"] = max_carat
     if q:
         query["$or"] = [
             {"sku": {"$regex": re.escape(q), "$options": "i"}},
