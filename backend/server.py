@@ -761,6 +761,7 @@ def map_feed_record(rec: dict) -> Optional[dict]:
         "symmetry": str(_pick(rec, "symmetry", "sym", "symm") or "Excellent").strip().title(),
         "fluorescence": str(_pick(rec, "fluorescence", "fluor", "fluo", "fls") or "None").strip().title(),
         "certification": str(_pick(rec, "certification", "certificate", "lab", "cert") or "GIA").strip().upper(),
+        "certificate_number": str(_pick(rec, "certificate_number", "cert_no", "cert_number", "report_no", "inscription", "certno") or "").strip(),
         "image": _pick(rec, "image", "image_url", "photo", "picture", "img", "image_link") or DIAMOND_IMAGES[0],
         "video_url": _pick(rec, "video", "video_url", "video_link"),
         "certificate_url": _pick(rec, "certificate_url", "cert_url", "cert_link", "certificate_pdf", "report_url", "cert_pdf"),
