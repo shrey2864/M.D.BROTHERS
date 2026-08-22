@@ -399,7 +399,7 @@ def build_seed_diamonds() -> List[dict]:
 
 @api_router.get("/diamonds")
 async def list_diamonds(
-    user: dict = Depends(require_approved),
+    request: Request,
     shape: Optional[str] = None,
     cut: Optional[str] = None,
     color: Optional[str] = None,
@@ -415,6 +415,10 @@ async def list_diamonds(
     sort: str = "featured",
     limit: int = Query(default=60, le=200),
 ):
+    # Browsing is public. Only approved/admin users get to see price.
+    user = await get_optional_user(request)
+    can_see_price = bool(user) and (user.get("role") == "admin" or user.get("status") == "approved")
+
     query = {}
     if shape:
         query["shape"] = {"$in": shape.split(",")}
@@ -448,18 +452,18 @@ async def list_diamonds(
         or_conds = []
         for part in carat_ranges.split(","):
             try:
-                 lo, hi = part.split("-")
-                 or_conds.append({"carat": {"$gte": float(lo), "$lte": float(hi)}})
+                lo, hi = part.split("-")
+                or_conds.append({"carat": {"$gte": float(lo), "$lte": float(hi)}})
             except (ValueError, AttributeError):
-                    continue
-         if or_conds:
-             query.setdefault("$and", []).append({"$or": or_conds})
-     elif min_carat is not None or max_carat is not None:
-          query["carat"] = {}
-          if min_carat is not None:
-              query["carat"]["$gte"] = min_carat
-          if max_carat is not None:
-              query["carat"]["$lte"] = max_carat
+                continue
+        if or_conds:
+            query.setdefault("$and", []).append({"$or": or_conds})
+    elif min_carat is not None or max_carat is not None:
+        query["carat"] = {}
+        if min_carat is not None:
+            query["carat"]["$gte"] = min_carat
+        if max_carat is not None:
+            query["carat"]["$lte"] = max_carat
     if q:
         query["$or"] = [
             {"sku": {"$regex": re.escape(q), "$options": "i"}},
@@ -476,9 +480,24 @@ async def list_diamonds(
     cursor = db.diamonds.find(query, {"_id": 0}).sort(sort_map.get(sort, sort_map["featured"])).limit(limit)
     items = await cursor.to_list(limit)
     total = await db.diamonds.count_documents(query)
-    return {"items": items, "total": total}
+
+    if not can_see_price:
+        for d in items:
+            d.pop("price", None)
+
+    return {"items": items, "total": total, "prices_visible": can_see_price}
 
 
+@api_router.get("/diamonds/{diamond_id}")
+async def get_diamond(diamond_id: str, request: Request):
+    d = await db.diamonds.find_one({"diamond_id": diamond_id}, {"_id": 0})
+    if not d:
+        raise HTTPException(status_code=404, detail="Diamond not found")
+    user = await get_optional_user(request)
+    can_see_price = bool(user) and (user.get("role") == "admin" or user.get("status") == "approved")
+    if not can_see_price:
+        d.pop("price", None)
+    return d
 @api_router.get("/match-pairs")
 async def match_pairs(
     shape: Optional[str] = None,
