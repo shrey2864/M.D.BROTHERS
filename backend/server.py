@@ -739,6 +739,21 @@ SHAPE_MAP = {
     "AS": "Asscher",
     "CB": "Cushion Brilliant",
 }
+GRADE_MAP = {
+    "EX": "Excellent", "EXCELLENT": "Excellent", "EXC": "Excellent",
+    "VG": "Very Good", "VERY GOOD": "Very Good",
+    "GD": "Good", "GOOD": "Good",
+    "FR": "Fair", "FAIR": "Fair",
+    "PR": "Poor", "POOR": "Poor",
+}
+FLUORESCENCE_MAP = {
+    "NON": "None", "NONE": "None", "N": "None",
+    "FNT": "Faint", "FAINT": "Faint", "F": "Faint",
+    "SLT": "Faint",
+    "MED": "Medium", "MEDIUM": "Medium", "M": "Medium",
+    "STG": "Strong", "STRONG": "Strong", "S": "Strong",
+    "VST": "Very Strong",
+}
 def _build_cert_url(lab: str, report_no) -> Optional[str]:
     if not report_no:
         return None
@@ -769,12 +784,12 @@ def map_feed_record(rec: dict) -> Optional[dict]:
         "sku": str(sku).strip(),
         "shape": SHAPE_MAP.get(str(shape).strip().upper(), str(shape).strip().capitalize()),
         "carat": round(carat, 2),
-        "cut": str(_pick(rec, "cut", "cut_grade") or "Excellent").strip().title(),
+        "cut": GRADE_MAP.get(str(_pick(rec, "cut", "cut_grade") or "Excellent").strip().upper(), "Excellent"),
         "color": str(_pick(rec, "color", "colour", "col") or "G").strip().upper(),
         "clarity": str(_pick(rec, "clarity", "clar", "purity") or "VS1").strip().upper(),
-        "polish": str(_pick(rec, "polish", "pol") or "Excellent").strip().title(),
-        "symmetry": str(_pick(rec, "symmetry", "sym", "symm") or "Excellent").strip().title(),
-        "fluorescence": str(_pick(rec, "fluorescence", "fluor", "fluo", "fls") or "None").strip().title(),
+        "polish": GRADE_MAP.get(str(_pick(rec, "polish", "pol") or "Excellent").strip().upper(), "Excellent"),
+        "symmetry": GRADE_MAP.get(str(_pick(rec, "symmetry", "sym", "symm") or "Excellent").strip().upper(), "Excellent"),
+        "fluorescence": FLUORESCENCE_MAP.get(str(_pick(rec, "fluorescence", "fluor", "fluo", "fls") or "None").strip().upper(), "None"),
         "certification": str(_pick(rec, "certification", "certificate", "lab", "cert") or "GIA").strip().upper(),
         "certificate_number": str(_pick(rec, "certificate_number", "cert_no", "cert_number", "report_no", "inscription", "certno") or "").strip(),
         "image": _pick(rec, "image", "image_url", "photo", "picture", "img", "image_link") or DIAMOND_IMAGES[0],
