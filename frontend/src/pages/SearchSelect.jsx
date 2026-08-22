@@ -297,10 +297,7 @@ const toggleCaratRange = (range) => {
               );
             })}
           </div>
-            );
-          })}
         </div>
-      </div>
 
       {/* Color: white D-N + O-Z | Fancy colour */}
       <div className="mt-12" data-testid="search-group-color">
