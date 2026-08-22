@@ -739,6 +739,19 @@ SHAPE_MAP = {
     "AS": "Asscher",
     "CB": "Cushion Brilliant",
 }
+def _build_cert_url(lab: str, report_no) -> Optional[str]:
+    if not report_no:
+        return None
+    num = re.sub(r"[^0-9]", "", str(report_no))
+    if not num:
+        return None
+    if lab == "GIA":
+        return f"https://www.gia.edu/report-check?reportno={num}"
+    if lab == "IGI":
+        return f"https://www.igi.org/verify-your-report/?r={num}"
+    if lab == "HRD":
+        return f"https://my.hrdantwerp.com/en/verify-report?number={num}"
+    return None
 def _to_float(v):
     try:
         return float(str(v).replace(",", "").replace("$", "").strip())
@@ -766,7 +779,10 @@ def map_feed_record(rec: dict) -> Optional[dict]:
         "certificate_number": str(_pick(rec, "certificate_number", "cert_no", "cert_number", "report_no", "inscription", "certno") or "").strip(),
         "image": _pick(rec, "image", "image_url", "photo", "picture", "img", "image_link") or DIAMOND_IMAGES[0],
         "video_url": _pick(rec, "video", "video_url", "video_link"),
-        "certificate_url": _pick(rec, "certificate_url", "cert_url", "cert_link", "certificate_pdf", "report_url", "cert_pdf"),
+        "certificate_url": _build_cert_url(
+            str(_pick(rec, "certification", "certificate", "lab", "cert") or "GIA").strip().upper(),
+            _pick(rec, "report_no", "certificate_number", "cert_no", "cert_number", "inscription", "certno"),
+        ),
         "source": "feed",
     }
     price = _to_float(_pick(rec, "price", "price_usd", "total_price", "amount", "value", "total", "rate", "net_value"))
