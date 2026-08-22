@@ -186,7 +186,20 @@ export default function Catalog() {
         {loading ? "Searching…" : `${data.total} stones`}
       </p>
       <button
-        onClick={() => navigate("/search")}
+        onClick={() => {
+          const params = new URLSearchParams();
+          if (filters.shape.length) params.set("shape", filters.shape.join(","));
+          if (filters.color.length) params.set("color", filters.color.join(","));
+          if (filters.clarity.length) params.set("clarity", filters.clarity.join(","));
+          if (filters.cut.length) params.set("cut", filters.cut.join(","));
+          if (filters.polish.length) params.set("polish", filters.polish.join(","));
+          if (filters.symmetry.length) params.set("symmetry", filters.symmetry.join(","));
+          if (filters.fluorescence.length) params.set("fluorescence", filters.fluorescence.join(","));
+          if (filters.lab.length) params.set("lab", filters.lab.join(","));
+          params.set("min_carat", carat[0]);
+          params.set("max_carat", carat[1]);
+          navigate(`/search?${params.toString()}`);
+       }}
         data-testid="modify-search-button"
         className="border border-white/20 px-4 py-2 font-mono text-[10px] uppercase tracking-[0.2em] text-zinc-300 transition-colors hover:border-gold hover:text-gold active:scale-95"
       >
