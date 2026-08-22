@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link, useSearchParams } from "react-router-dom";
+import { Link, useSearchParams, useNavigate } from "react-router-dom";
 import { api } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import { DiamondCard } from "@/components/DiamondCard";
@@ -23,6 +23,7 @@ const GROUPS = [
 
 export default function Catalog() {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const canView = !!user && (user.role === "admin" || user.status === "approved");
   const [searchParams] = useSearchParams();
   const initArr = (k) => searchParams.get(k)?.split(",").filter(Boolean) || [];
@@ -185,11 +186,11 @@ export default function Catalog() {
         {loading ? "Searching…" : `${data.total} stones`}
       </p>
       <button
-        onClick={() => setShowFilters((s) => !s)}
+        onClick={() => navigate("/search")}
         data-testid="modify-search-button"
         className="border border-white/20 px-4 py-2 font-mono text-[10px] uppercase tracking-[0.2em] text-zinc-300 transition-colors hover:border-gold hover:text-gold active:scale-95"
       >
-        {showFilters ? "Hide Filters" : "Modify Search"}
+        Modify Search
       </button>
     </div>
     <Select value={sort} onValueChange={setSort}>
