@@ -1,8 +1,8 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { Menu, X, Gem } from "lucide-react";
+import { Menu, X, Gem, Search } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
-
+import { api } from "@/lib/api";
 const LINKS = [
   { to: "/dashboard", label: "Dashboard", authOnly: true },
   { to: "/search", label: "Search", authOnly: true },
@@ -14,7 +14,23 @@ const LINKS = [
 export const Header = () => {
   const { user, logout } = useAuth();
   const [open, setOpen] = useState(false);
+  const [quickQ, setQuickQ] = useState("");
   const navigate = useNavigate();
+
+  const handleQuickSearch = async (e) => {
+    e.preventDefault();
+    if (!quickQ.trim()) return;
+    try {
+      const r = await api.get("/diamonds", { params: { q: quickQ.trim(), limit: 1 } });
+      const hit = r.data?.items?.[0];
+      if (hit) {
+        navigate(`/diamonds/${hit.diamond_id}`);
+        setQuickQ("");
+      }
+    } catch {
+      // ignore — no match found
+    }
+  };
 
   const handleLogout = async () => {
     await logout();
@@ -32,6 +48,18 @@ export const Header = () => {
           </span>
         </Link>
 
+        {user && (
+          <form onSubmit={handleQuickSearch} className="relative mx-6 hidden max-w-[220px] flex-1 md:block">
+            <Search className="pointer-events-none absolute left-0 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-zinc-600" strokeWidth={1.5} />
+            <input
+              value={quickQ}
+              onChange={(e) => setQuickQ(e.target.value)}
+              placeholder="SKU or certificate no."
+              data-testid="header-quick-search-input"
+              className="w-full border-b border-white/15 bg-transparent py-1 pl-5 font-mono text-[11px] tracking-[0.05em] text-zinc-300 placeholder:text-zinc-600 focus:border-gold focus:outline-none"
+            />
+          </form>
+        )}
         <nav className="hidden items-center gap-10 md:flex" data-testid="header-nav">
           {LINKS.filter((l) => (!l.authOnly || user) && !(l.adminHide && user?.role === "admin")).map((l) =>
             l.anchor ? (
