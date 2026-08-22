@@ -207,7 +207,7 @@ export default function Catalog() {
         Modify Search
       </button>
     </div>
-               <div className="flex items-center gap-1 border border-white/20">
+              <div className="ml-auto flex items-center gap-1 border border-white/20">
               <button
                 onClick={() => setView("grid")}
                 data-testid="view-grid-button"
