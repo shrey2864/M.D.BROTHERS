@@ -26,6 +26,7 @@ export const DiamondCard = ({ diamond, index = 0 }) => {
       loading="lazy"
       className="aspect-square w-full border-0 transition-transform duration-700 ease-out group-hover:scale-105"
       allowFullScreen
+      sandbox="allow-scripts allow-same-origin allow-popups"
     />
   ) : (
     <img
