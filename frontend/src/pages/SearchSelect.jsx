@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import { motion } from "framer-motion";
 import { Search, RotateCcw } from "lucide-react";
 import { Overline, MaskedLine } from "@/components/Reveal";
@@ -128,14 +128,26 @@ export default function SearchSelect() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const canView = !!user && (user.role === "admin" || user.status === "approved");
-  const [shapes, setShapes] = useState([]);
-  const [carat, setCarat] = useState(null); // null = All
+  const [searchParams] = useSearchParams();
+  const initArr = (k) => searchParams.get(k)?.split(",").filter(Boolean) || [];
+  const initMinCarat = searchParams.get("min_carat");
+  const initMaxCarat = searchParams.get("max_carat");
+  const initCarat = initMinCarat && initMaxCarat ? [parseFloat(initMinCarat), parseFloat(initMaxCarat)] : null;
+
+  const [shapes, setShapes] = useState(initArr("shape"));
+  const [carat, setCarat] = useState(initCarat);
   const [caratFrom, setCaratFrom] = useState("");
   const [caratTo, setCaratTo] = useState("");
-  const [colors, setColors] = useState([]);
+  const [colors, setColors] = useState(initArr("color"));
   const [quick, setQuick] = useState([]);
-  const [pills, setPills] = useState({ clarity: [], fluorescence: [], lab: [], cut: [], polish: [], symmetry: [] });
-
+  const [pills, setPills] = useState({
+    clarity: initArr("clarity"),
+    fluorescence: initArr("fluorescence"),
+    lab: initArr("lab"),
+    cut: initArr("cut"),
+    polish: initArr("polish"),
+    symmetry: initArr("symmetry"),
+  });
   const toggleShape = (s) =>
     setShapes((prev) => (prev.includes(s) ? prev.filter((x) => x !== s) : [...prev, s]));
 
