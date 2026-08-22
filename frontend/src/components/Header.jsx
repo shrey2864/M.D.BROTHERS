@@ -139,6 +139,16 @@ export const Header = () => {
                 {l.label}
               </Link>
             ))}
+            {user?.role === "admin" && (
+             <Link
+               to="/admin"
+               onClick={() => setOpen(false)}
+               data-testid="mobile-admin-link"
+               className="font-mono text-xs uppercase tracking-[0.25em] text-gold"
+             >
+    Inventory
+  </Link>
+)}
             {user ? (
               <button onClick={handleLogout} data-testid="mobile-logout-button" className="text-left font-mono text-xs uppercase tracking-[0.25em] text-gold">
                 Logout ({user.name})
