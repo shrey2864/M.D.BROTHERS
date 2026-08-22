@@ -135,7 +135,7 @@ export default function SearchSelect() {
   const initCarat = initMinCarat && initMaxCarat ? [parseFloat(initMinCarat), parseFloat(initMaxCarat)] : null;
 
   const [shapes, setShapes] = useState(initArr("shape"));
-  const [carat, setCarat] = useState(initCarat);
+  const [caratRanges, setCaratRanges] = useState(initCarat ? [initCarat] : []);
   const [caratFrom, setCaratFrom] = useState("");
   const [caratTo, setCaratTo] = useState("");
   const [colors, setColors] = useState(initArr("color"));
@@ -160,10 +160,26 @@ export default function SearchSelect() {
   const applyCustomCarat = () => {
     const from = parseFloat(caratFrom);
     const to = parseFloat(caratTo);
-    if (!isNaN(from) && !isNaN(to) && to >= from) setCarat([from, to]);
-    else if (!isNaN(from)) setCarat([from, 10]);
-    else if (!isNaN(to)) setCarat([0.18, to]);
+    let range = null;
+    if (!isNaN(from) && !isNaN(to) && to >= from) range = [from, to];
+    else if (!isNaN(from)) range = [from, 10];
+    else if (!isNaN(to)) range = [0.18, to];
+    if (range) setCaratRanges((prev) => [...prev, range]);
   };
+
+const toggleCaratRange = (range) => {
+  if (range === null) {
+    setCaratRanges([]);
+    return;
+  }
+  setCaratRanges((prev) => {
+    const exists = prev.some((r) => r[0] === range[0] && r[1] === range[1]);
+    return exists
+      ? prev.filter((r) => !(r[0] === range[0] && r[1] === range[1]))
+      : [...prev, range];
+  });
+};
+
 
   const toggleQuick = (qt) => {
     if (quick.includes(qt.key)) {
@@ -198,15 +214,14 @@ export default function SearchSelect() {
   };
 
   const filterCount =
-    shapes.length + colors.length + (carat ? 1 : 0) + Object.values(pills).reduce((a, b) => a + b.length, 0);
-
+    shapes.length + colors.length + caratRanges.length + Object.values(pills).reduce((a, b) => a + b.length, 0);
   const search = () => {
     const params = new URLSearchParams();
     if (shapes.length) params.set("shape", shapes.join(","));
     if (colors.length) params.set("color", colors.join(","));
-    if (carat) {
-      params.set("min_carat", carat[0]);
-      params.set("max_carat", carat[1]);
+          if (caratRanges.length) {
+        params.set("carat_ranges", caratRanges.map((r) => `${r[0]}-${r[1]}`).join(","));
+      }
     }
     Object.entries(pills).forEach(([k, v]) => {
       if (v.length) params.set(k, v.join(","));
@@ -261,23 +276,28 @@ export default function SearchSelect() {
             className="border border-gold/50 px-5 py-2.5 font-mono text-[11px] uppercase tracking-[0.2em] text-gold transition-colors hover:bg-gold hover:text-black active:scale-95">
             Apply
           </button>
-          {carat && (
-            <span className="py-2.5 font-mono text-[11px] uppercase tracking-[0.2em] text-zinc-400" data-testid="search-carat-selected">
-              {carat[0]} – {carat[1]} ct selected
-            </span>
-          )}
-        </div>
-        <div className="mt-4 flex flex-wrap gap-2">
-          {CARAT_PRESETS.map((c) => {
-            const active = carat === null ? c.range === null : c.range !== null && carat?.[0] === c.range[0];
-            return (
-              <button key={c.label} onClick={() => { setCarat(c.range); setCaratFrom(""); setCaratTo(""); }}
-                data-testid={`search-carat-${c.label.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`}
-                className={`border px-5 py-2.5 font-mono text-[11px] uppercase tracking-[0.15em] transition-all duration-300 active:scale-95 ${
-                  active ? "border-gold bg-gold text-black" : "border-white/10 text-zinc-400 hover:border-gold/50 hover:text-white"
-                }`}>
-                {c.label}
-              </button>
+          {caratRanges.length > 0 && (
+                         <span className="py-2.5 font-mono text-[11px] uppercase tracking-[0.2em] text-zinc-400" data-testid="search-carat-selected">
+                {caratRanges.length} range{caratRanges.length > 1 ? "s" : ""} selected
+              </span>
+            )}
+          </div>
+          <div className="mt-4 flex flex-wrap gap-2">
+            {CARAT_PRESETS.map((c) => {
+              const active = c.range === null
+                ? caratRanges.length === 0
+                : caratRanges.some((r) => r[0] === c.range[0] && r[1] === c.range[1]);
+              return (
+                <button key={c.label} onClick={() => toggleCaratRange(c.range)}
+                  data-testid={`search-carat-${c.label.toLowerCase().replace(/[^a-z0-9]+/g, "-")}`}
+                  className={`border px-5 py-2.5 font-mono text-[11px] uppercase tracking-[0.15em] transition-all duration-300 active:scale-95 ${
+                    active ? "border-gold bg-gold text-black" : "border-white/10 text-zinc-400 hover:border-gold/50 hover:text-white"
+                  }`}>
+                  {c.label}
+                </button>
+              );
+            })}
+          </div>
             );
           })}
         </div>
