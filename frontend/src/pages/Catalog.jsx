@@ -8,7 +8,7 @@ import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/
 import { Checkbox } from "@/components/ui/checkbox";
 import { Slider } from "@/components/ui/slider";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Search } from "lucide-react";
+import { Search, LayoutGrid, List } from "lucide-react";
 
 const GROUPS = [
   { key: "shape", label: "Shape", options: ["Round", "Princess", "Oval", "Cushion", "Emerald", "Pear", "Marquise", "Radiant"] },
@@ -41,6 +41,7 @@ export default function Catalog() {
   const [data, setData] = useState({ items: [], total: 0 });
   const [loading, setLoading] = useState(true);
   const [showFilters, setShowFilters] = useState(false);
+  const [view, setView] = useState("grid");
 
   const toggle = (key, value) =>
     setFilters((f) => ({
@@ -206,6 +207,22 @@ export default function Catalog() {
         Modify Search
       </button>
     </div>
+               <div className="flex items-center gap-1 border border-white/20">
+              <button
+                onClick={() => setView("grid")}
+                data-testid="view-grid-button"
+                className={`p-2 transition-colors ${view === "grid" ? "bg-gold text-black" : "text-zinc-400 hover:text-white"}`}
+              >
+                <LayoutGrid className="h-4 w-4" strokeWidth={1.5} />
+              </button>
+              <button
+                onClick={() => setView("list")}
+                data-testid="view-list-button"
+                className={`p-2 transition-colors ${view === "list" ? "bg-gold text-black" : "text-zinc-400 hover:text-white"}`}
+              >
+                <List className="h-4 w-4" strokeWidth={1.5} />
+              </button>
+            </div>
     <Select value={sort} onValueChange={setSort}>
               <SelectTrigger data-testid="catalog-sort-select" className="w-[180px] rounded-none border-white/20 bg-transparent font-mono text-[11px] uppercase tracking-[0.15em] text-zinc-300">
                 <SelectValue />
@@ -221,11 +238,51 @@ export default function Catalog() {
             </Select>
           </div>
 
-          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3" data-testid="catalog-grid">
-            {data.items.map((d, i) => (
-              <DiamondCard key={d.diamond_id} diamond={d} index={i} />
-            ))}
-          </div>
+                   {view === "grid" ? (
+            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3" data-testid="catalog-grid">
+              {data.items.map((d, i) => (
+                <DiamondCard key={d.diamond_id} diamond={d} index={i} />
+              ))}
+            </div>
+          ) : (
+            <div className="overflow-x-auto border border-white/10" data-testid="catalog-list">
+              <table className="w-full min-w-[900px] border-collapse text-left">
+                <thead>
+                  <tr className="border-b border-white/10 bg-white/5">
+                    {["SKU", "Shape", "Carat", "Color", "Clarity", "Cut", "Polish", "Symmetry", "Fluor.", "Lab", "Price", ""].map((h) => (
+                      <th key={h} className="whitespace-nowrap px-4 py-3 font-mono text-[10px] uppercase tracking-[0.2em] text-zinc-500">
+                        {h}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {data.items.map((d) => (
+                    <tr key={d.diamond_id} className="border-b border-white/5 transition-colors hover:bg-white/5" data-testid={`list-row-${d.sku}`}>
+                      <td className="whitespace-nowrap px-4 py-3 font-mono text-xs text-zinc-400">{d.sku}</td>
+                      <td className="whitespace-nowrap px-4 py-3 text-sm text-white">{d.shape}</td>
+                      <td className="whitespace-nowrap px-4 py-3 font-mono text-xs text-zinc-300">{d.carat.toFixed(2)}</td>
+                      <td className="whitespace-nowrap px-4 py-3 font-mono text-xs text-zinc-300">{d.color}</td>
+                      <td className="whitespace-nowrap px-4 py-3 font-mono text-xs text-zinc-300">{d.clarity}</td>
+                      <td className="whitespace-nowrap px-4 py-3 font-mono text-xs text-zinc-300">{d.cut}</td>
+                      <td className="whitespace-nowrap px-4 py-3 font-mono text-xs text-zinc-300">{d.polish}</td>
+                      <td className="whitespace-nowrap px-4 py-3 font-mono text-xs text-zinc-300">{d.symmetry}</td>
+                      <td className="whitespace-nowrap px-4 py-3 font-mono text-xs text-zinc-300">{d.fluorescence}</td>
+                      <td className="whitespace-nowrap px-4 py-3 font-mono text-xs text-zinc-300">{d.certification}</td>
+                      <td className="whitespace-nowrap px-4 py-3 font-serif text-sm text-gold">
+                        {d.price != null ? `$${d.price.toLocaleString()}` : "—"}
+                      </td>
+                      <td className="whitespace-nowrap px-4 py-3">
+                        <Link to={`/diamonds/${d.diamond_id}`} className="font-mono text-[10px] uppercase tracking-[0.2em] text-gold hover:text-gold-light">
+                          View
+                        </Link>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
 
           {!loading && data.items.length === 0 && (
             <div className="border border-white/10 py-24 text-center" data-testid="catalog-empty-state">
