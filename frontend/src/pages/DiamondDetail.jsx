@@ -102,6 +102,7 @@ export default function DiamondDetail() {
                   className="aspect-square w-full border-0"
                   allowFullScreen
                   data-testid="diamond-image"
+                  sandbox="allow-scripts allow-same-origin allow-popups"
                 />
               ) : (
                 <img src={diamond.image} alt={`${diamond.shape} diamond ${diamond.sku}`}
