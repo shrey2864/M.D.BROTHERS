@@ -17,6 +17,7 @@ const SPEC_LABELS = [
   ["symmetry", "Symmetry"],
   ["fluorescence", "Fluorescence"],
   ["certification", "Certificate"],
+  ["certificate_number", "Certificate No."],
 ];
 
 export default function DiamondDetail() {
