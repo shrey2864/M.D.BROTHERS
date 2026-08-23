@@ -270,8 +270,17 @@ export default function Catalog() {
                       <td className="whitespace-nowrap px-4 py-3 font-mono text-xs text-zinc-300">{d.fluorescence}</td>
                       <td className="whitespace-nowrap px-4 py-3 font-mono text-xs text-zinc-300">{d.certification}</td>
                       <td className="whitespace-nowrap px-4 py-3 font-serif text-sm text-gold">
-                        {d.price != null ? `$${d.price.toLocaleString()}` : "—"}
-                      </td>
+                        {d.price != null ? (
+                          <>
+                            ${d.price.toLocaleString()}
+                            {d.DISC_PER != null && (
+                              <span className="ml-1 text-xs text-zinc-400">
+                                ({Math.round(parseFloat(d.DISC_PER))}%)
+                               </span>
+                            )}
+                          </>
+                        ) : "—"}
+                       </td>
                       <td className="whitespace-nowrap px-4 py-3">
                         <Link to={`/diamonds/${d.diamond_id}`} className="font-mono text-[10px] uppercase tracking-[0.2em] text-gold hover:text-gold-light">
                           View
