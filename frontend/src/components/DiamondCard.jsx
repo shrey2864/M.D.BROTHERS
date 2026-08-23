@@ -53,8 +53,13 @@ export const DiamondCard = ({ diamond, index = 0 }) => {
         <div className="mt-4 flex items-center justify-between border-t border-white/10 pt-4">
           {diamond.price != null ? (
             <p className="font-serif text-2xl text-gold" data-testid={`diamond-price-${diamond.sku}`}>
-              ${diamond.price.toLocaleString()}
-            </p>
+               ${diamond.price.toLocaleString()}
+               {diamond.DISC_PER != null && (
+                 <span className="ml-2 text-sm text-zinc-400">
+                   ({Math.round(parseFloat(diamond.DISC_PER))}%)
+                 </span>
+               )}
+             </p>
           ) : (
             <p className="font-mono text-[11px] uppercase tracking-[0.2em] text-zinc-500" data-testid={`diamond-price-hidden-${diamond.sku}`}>
               Login to view price
