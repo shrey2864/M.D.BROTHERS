@@ -6,46 +6,69 @@ import { Overline, MaskedLine } from "@/components/Reveal";
 import { useAuth } from "@/context/AuthContext";
 
 export const SHAPE_ICONS = {
-  Round: { outline: "M12,2 A10,10 0 1,1 11.99,2 Z" },
-  Oval: { outline: "M12,1.5 C17.5,1.5 21,6 21,12 C21,18 17.5,22.5 12,22.5 C6.5,22.5 3,18 3,12 C3,6 6.5,1.5 12,1.5 Z" },
-  Pear: { outline: "M12,1.5 C15,5 19,10.5 19,14.5 A7,7 0 1,1 5,14.5 C5,10.5 9,5 12,1.5 Z" },
-  Marquise: { outline: "M12,1 C16,5.5 19,9 19,12 C19,15 16,18.5 12,23 C8,18.5 5,15 5,12 C5,9 8,5.5 12,1 Z" },
-  Heart: { outline: "M12,21 C3,14.5 2,8.5 6.3,5.5 C9,3.7 12,5.5 12,8.2 C12,5.5 15,3.7 17.7,5.5 C22,8.5 21,14.5 12,21 Z" },
-  Cushion: { outline: "M4,4 Q4,12 4,20 Q12,20 20,20 Q20,12 20,4 Q12,4 4,4 Z", rx: 6 },
-  "Cushion B": { outline: "M3.5,3.5 Q3.5,12 3.5,20.5 Q12,20.5 20.5,20.5 Q20.5,12 20.5,3.5 Q12,3.5 3.5,3.5 Z", rx: 7 },
-  Emerald: { outline: "M8,3 H16 L21,8 V16 L16,21 H8 L3,16 V8 Z" },
-  "Sq.emerald": { outline: "M7,3 H17 L21,7 V17 L17,21 H7 L3,17 V7 Z" },
-  Princess: { outline: "M4,4 H20 V20 H4 Z" },
-  Square: { outline: "M4,4 H20 V20 H4 Z" },
-  Radiant: { outline: "M7.5,3 H16.5 L21,7.5 V16.5 L16.5,21 H7.5 L3,16.5 V7.5 Z" },
-  "L Radiant": { outline: "M6.5,3 H14.5 L18.5,7 V21 L9.5,20.5 L5.5,17 V7 Z" },
-  "Other Cuts": { outline: "M12,1.5 L20.5,8 L17.5,19 L6.5,19 L3.5,8 Z" },
-  Pair: { isPair: true },
+  Round: [
+    <circle key="a" cx="12" cy="12" r="8.5" />,
+    <circle key="b" cx="12" cy="12" r="4.5" />,
+  ],
+  Oval: [
+    <ellipse key="a" cx="12" cy="12" rx="7" ry="9" />,
+    <ellipse key="b" cx="12" cy="12" rx="3.8" ry="5.4" />,
+  ],
+  Pear: [
+    <path key="a" d="M12 2.5 C16.5 7.5 18.5 11 18.5 14.5 A6.5 6.5 0 1 1 5.5 14.5 C5.5 11 7.5 7.5 12 2.5 Z" />,
+    <path key="b" d="M12 7 C14.6 10 15.8 12.2 15.8 14.5 A3.8 3.8 0 1 1 8.2 14.5 C8.2 12.2 9.4 10 12 7 Z" />,
+  ],
+  Marquise: [
+    <path key="a" d="M12 2.5 C16.5 6.5 16.5 17.5 12 21.5 C7.5 17.5 7.5 6.5 12 2.5 Z" />,
+    <path key="b" d="M12 6.8 C14.4 9.2 14.4 14.8 12 17.2 C9.6 14.8 9.6 9.2 12 6.8 Z" />,
+  ],
+  Heart: [
+    <path key="a" d="M12 20.5 C4.5 14.5 3.5 9 7.3 6.3 C9.5 4.8 12 6.3 12 8.5 C12 6.3 14.5 4.8 16.7 6.3 C20.5 9 19.5 14.5 12 20.5 Z" />,
+    <path key="b" d="M12 16 C8.6 12.9 8.1 10.1 9.9 8.9 C11 8.1 12 9.1 12 10.4 C12 9.1 13 8.1 14.1 8.9 C15.9 10.1 15.4 12.9 12 16 Z" />,
+  ],
+  Cushion: [
+    <rect key="a" x="4.5" y="4.5" width="15" height="15" rx="5.5" />,
+    <rect key="b" x="8.3" y="8.3" width="7.4" height="7.4" rx="2.4" />,
+  ],
+  Emerald: [
+    <path key="a" d="M8 3.5 H16 L20.5 8 V16 L16 20.5 H8 L3.5 16 V8 Z" />,
+    <rect key="b" x="8.3" y="8.3" width="7.4" height="7.4" />,
+  ],
+  Princess: [
+    <rect key="a" x="4.5" y="4.5" width="15" height="15" />,
+    <rect key="b" x="8.3" y="8.3" width="7.4" height="7.4" />,
+  ],
+  Radiant: [
+    <path key="a" d="M7 3.5 H17 L20.5 7 V17 L17 20.5 H7 L3.5 17 V7 Z" />,
+    <rect key="b" x="8.3" y="8.3" width="7.4" height="7.4" />,
+  ],
+  "Cushion B": [
+    <rect key="a" x="4.5" y="4.5" width="15" height="15" rx="3" />,
+    <rect key="b" x="8.3" y="8.3" width="7.4" height="7.4" rx="1.2" />,
+  ],
+  "Sq.emerald": [
+    <path key="a" d="M7 3.5 H17 L20.5 7 V17 L17 20.5 H7 L3.5 17 V7 Z" />,
+    <rect key="b" x="8.3" y="8.3" width="7.4" height="7.4" />,
+  ],
+  Square: [
+    <rect key="a" x="4.5" y="4.5" width="15" height="15" />,
+  ],
+  "L Radiant": [
+    <path key="a" d="M6 3.5 H14 L18.5 7 V21 L10 20.5 L5.5 17 V7 Z" />,
+    <rect key="b" x="7.6" y="8.2" width="5.2" height="7.6" />,
+  ],
+  "Other Cuts": [
+    <path key="a" d="M12 2.5 L20 8 L17.5 18.5 L6.5 18.5 L4 8 Z" />,
+  ],
 };
 
-export const ShapeIcon = ({ shape, active }) => {
-  const data = SHAPE_ICONS[shape];
-  if (!data) return null;
-
-  const fill = active ? "#D4AF37" : "#e4e4e7";
-  const stroke = active ? "#0C1E30" : "#71717a";
-
-  if (data.isPair) {
-    return (
-      <svg viewBox="0 0 24 24" className="h-8 w-8" aria-hidden="true">
-        <circle cx="8" cy="12" r="6" fill={fill} stroke={stroke} strokeWidth="0.7" />
-        <circle cx="16" cy="12" r="6" fill={fill} stroke={stroke} strokeWidth="0.7" />
-      </svg>
-    );
-  }
-
-  return (
-    <svg viewBox="0 0 24 24" className="h-8 w-8" aria-hidden="true">
-      <path d={data.outline} fill={fill} stroke={stroke} strokeWidth="0.7" strokeLinejoin="round" />
-    </svg>
-  );
-};
-
+export const ShapeIcon = ({ shape, active }) => (
+  <svg viewBox="0 0 24 24" className={`h-9 w-9 ${active ? "text-black" : "text-zinc-400"}`}
+    fill="none" stroke="currentColor" strokeWidth="1.1" aria-hidden="true">
+    {SHAPE_ICONS[shape]}
+  </svg>
+);
+  
 const CARAT_PRESETS = [
   { label: "All", range: null },
   { label: "30s Down", range: [0.18, 0.29] },
