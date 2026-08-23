@@ -318,24 +318,33 @@ const toggleCaratRange = (range) => {
         Select shapes, carat range and the four Cs — we'll show you matching stones from live inventory.
       </p>
 
-      {/* Shapes */}
-      <div className="mt-14" data-testid="search-shapes">
-        <p className="font-mono text-[11px] uppercase tracking-[0.3em] text-gold">Shapes</p>
-        <div className="mt-5 flex flex-wrap gap-3">
-          {Object.keys(SHAPE_ICONS).map((s) => {
-            const active = shapes.includes(s);
-            return (
-              <button key={s} onClick={() => toggleShape(s)} data-testid={`search-shape-${s.toLowerCase()}`}
-                className={`flex w-[104px] flex-col items-center gap-2 border py-4 transition-all duration-300 active:scale-95 ${
-                  active ? "border-gold bg-gold text-black" : "border-white/10 text-zinc-400 hover:border-gold/50 hover:text-white"
-                }`}>
-                <ShapeIcon shape={s} active={active} />
-                <span className="font-mono text-[10px] uppercase tracking-[0.15em]">{s}</span>
-              </button>
-            );
-          })}
-        </div>
-      </div>
+{/* Shapes */}
+<div className="mt-14" data-testid="search-shapes">
+  <p className="font-mono text-[11px] uppercase tracking-[0.3em] text-gold">Shapes</p>
+  <div className="mt-5 flex flex-wrap gap-2">
+    <button
+      onClick={() => setShapes([])}
+      data-testid="search-shape-all"
+      className={`flex w-[76px] flex-col items-center justify-center gap-1 border py-3 transition-all duration-300 active:scale-95 ${
+        shapes.length === 0 ? "border-gold bg-gold text-black" : "border-white/10 text-zinc-400 hover:border-gold/50 hover:text-white"
+      }`}
+    >
+      <span className="font-mono text-[9px] uppercase tracking-[0.1em]">All Shapes</span>
+    </button>
+    {Object.keys(SHAPE_ICONS).map((s) => {
+      const active = shapes.includes(s);
+      return (
+        <button key={s} onClick={() => toggleShape(s)} data-testid={`search-shape-${s.toLowerCase().replace(/\s/g, "-")}`}
+          className={`flex w-[76px] flex-col items-center gap-1 border py-3 transition-all duration-300 active:scale-95 ${
+            active ? "border-gold bg-gold text-black" : "border-white/10 text-zinc-400 hover:border-gold/50 hover:text-white"
+          }`}>
+          <ShapeIcon shape={s} active={active} />
+          <span className="font-mono text-[9px] uppercase tracking-[0.1em]">{s}</span>
+        </button>
+      );
+    })}
+  </div>
+</div>
 
       {/* Carat: custom From/To + presets */}
       <div className="mt-12" data-testid="search-carat">
