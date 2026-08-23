@@ -44,6 +44,11 @@ export default function Login() {
           <input type="password" required placeholder="Password" value={form.password}
             onChange={(e) => setForm({ ...form, password: e.target.value })}
             className="lux-input" data-testid="login-password-input" />
+          <div className="flex justify-end">
+           <Link to="/forgot-password" data-testid="login-forgot-password-link" className="text-xs text-zinc-500 hover:text-gold underline-offset-4 hover:underline">
+             Forgot password?
+           </Link>
+         </div>
           <button type="submit" disabled={loading} data-testid="login-submit-button"
             className="w-full bg-gold py-4 font-mono text-[11px] uppercase tracking-[0.25em] text-black transition-colors hover:bg-gold-light active:scale-95 disabled:opacity-50">
             {loading ? "Signing in…" : "Sign In"}
