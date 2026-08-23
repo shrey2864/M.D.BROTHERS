@@ -6,87 +6,45 @@ import { Overline, MaskedLine } from "@/components/Reveal";
 import { useAuth } from "@/context/AuthContext";
 
 export const SHAPE_ICONS = {
-  Round: {
-    outline: "M12 2 A10 10 0 1 1 11.99 2 Z",
-    facets: ["M12 2 L12 22", "M2 12 L22 12", "M4.93 4.93 L19.07 19.07", "M19.07 4.93 L4.93 19.07", "M12 2 L19.07 4.93 L22 12 L19.07 19.07 L12 22 L4.93 19.07 L2 12 L4.93 4.93 Z"],
-  },
-  Oval: {
-    outline: "M12 2 C18 2 21 6.5 21 12 C21 17.5 18 22 12 22 C6 22 3 17.5 3 12 C3 6.5 6 2 12 2 Z",
-    facets: ["M12 2 L12 22", "M3 12 L21 12", "M12 2 C16 5 18 8.5 18 12 C18 15.5 16 19 12 22", "M12 2 C8 5 6 8.5 6 12 C6 15.5 8 19 12 22"],
-  },
-  Pear: {
-    outline: "M12 2.5 C16.5 7.5 18.5 11 18.5 14.5 A6.5 6.5 0 1 1 5.5 14.5 C5.5 11 7.5 7.5 12 2.5 Z",
-    facets: ["M12 2.5 L12 21", "M8.2 14.5 L15.8 14.5", "M12 2.5 C14.6 5.8 16.2 8.6 17 11.3 L15.8 14.5", "M12 2.5 C9.4 5.8 7.8 8.6 7 11.3 L8.2 14.5"],
-  },
-  Marquise: {
-    outline: "M12 2.5 C16.5 6.5 16.5 17.5 12 21.5 C7.5 17.5 7.5 6.5 12 2.5 Z",
-    facets: ["M12 2.5 L12 21.5", "M12 2.5 C14.4 6 15.3 9.5 15.3 12 C15.3 14.5 14.4 18 12 21.5", "M12 2.5 C9.6 6 8.7 9.5 8.7 12 C8.7 14.5 9.6 18 12 21.5"],
-  },
-  Heart: {
-    outline: "M12 20.5 C4.5 14.5 3.5 9 7.3 6.3 C9.5 4.8 12 6.3 12 8.5 C12 6.3 14.5 4.8 16.7 6.3 C20.5 9 19.5 14.5 12 20.5 Z",
-    facets: ["M12 8.5 L12 20.5", "M12 8.5 C9.4 10 8 11.8 8 13.6 L12 20.5", "M12 8.5 C14.6 10 16 11.8 16 13.6 L12 20.5"],
-  },
-  Cushion: {
-    outline: "M4.5 4.5 H19.5 V19.5 H4.5 Z",
-    facets: ["M4.5 4.5 L19.5 19.5", "M19.5 4.5 L4.5 19.5", "M8.3 8.3 L15.7 8.3 L15.7 15.7 L8.3 15.7 Z"],
-  },
-  "Cushion B": {
-    outline: "M4.5 4.5 H19.5 V19.5 H4.5 Z",
-    facets: ["M4.5 4.5 L8.3 8.3", "M19.5 4.5 L15.7 8.3", "M4.5 19.5 L8.3 15.7", "M19.5 19.5 L15.7 15.7", "M12 4.5 L12 19.5", "M4.5 12 L19.5 12", "M8.3 8.3 H15.7 V15.7 H8.3 Z"],
-  },
-  Emerald: {
-    outline: "M8 3.5 H16 L20.5 8 V16 L16 20.5 H8 L3.5 16 V8 Z",
-    facets: ["M8 3.5 L8.3 8.3", "M16 3.5 L15.7 8.3", "M3.5 8 L8.3 8.3", "M3.5 16 L8.3 15.7", "M20.5 8 L15.7 8.3", "M20.5 16 L15.7 15.7", "M8 20.5 L8.3 15.7", "M16 20.5 L15.7 15.7", "M8.3 8.3 H15.7 V15.7 H8.3 Z"],
-  },
-  "Sq.emerald": {
-    outline: "M6.5 3.5 H17.5 L20.5 6.5 V17.5 L17.5 20.5 H6.5 L3.5 17.5 V6.5 Z",
-    facets: ["M6.5 3.5 L8.3 8.3", "M17.5 3.5 L15.7 8.3", "M3.5 6.5 L8.3 8.3", "M3.5 17.5 L8.3 15.7", "M20.5 6.5 L15.7 8.3", "M20.5 17.5 L15.7 15.7", "M6.5 20.5 L8.3 15.7", "M17.5 20.5 L15.7 15.7", "M8.3 8.3 H15.7 V15.7 H8.3 Z"],
-  },
-  Princess: {
-    outline: "M4.5 4.5 H19.5 V19.5 H4.5 Z",
-    facets: ["M4.5 4.5 L19.5 19.5", "M19.5 4.5 L4.5 19.5"],
-  },
-  Square: {
-    outline: "M4.5 4.5 H19.5 V19.5 H4.5 Z",
-    facets: ["M4.5 4.5 L19.5 19.5", "M19.5 4.5 L4.5 19.5", "M12 4.5 L12 19.5", "M4.5 12 L19.5 12"],
-  },
-  Radiant: {
-    outline: "M7 3.5 H17 L20.5 7 V17 L17 20.5 H7 L3.5 17 V7 Z",
-    facets: ["M7 3.5 L8.3 8.3", "M17 3.5 L15.7 8.3", "M3.5 7 L8.3 8.3", "M3.5 17 L8.3 15.7", "M20.5 7 L15.7 8.3", "M20.5 17 L15.7 15.7", "M7 20.5 L8.3 15.7", "M17 20.5 L15.7 15.7", "M8.3 8.3 H15.7 V15.7 H8.3 Z"],
-  },
-  "L Radiant": {
-    outline: "M6 3.5 H14 L18.5 7 V21 L10 20.5 L5.5 17 V7 Z",
-    facets: ["M6 3.5 L7.6 8.2", "M14 3.5 L12.8 8.2", "M5.5 7 L7.6 8.2", "M5.5 17 L7.6 15.8", "M18.5 7 L12.8 8.2", "M18.5 21 L12.8 15.8", "M7.6 8.2 H12.8 V15.8 H7.6 Z"],
-  },
-  "Other Cuts": {
-    outline: "M12 2.5 L20 8 L17.5 18.5 L6.5 18.5 L4 8 Z",
-    facets: ["M12 2.5 L12 18.5", "M4 8 L20 8", "M12 2.5 L20 8", "M12 2.5 L4 8", "M6.5 18.5 L12 8", "M17.5 18.5 L12 8"],
-  },
-  Pair: {
-    outline: "M4 12 A5 5 0 1 1 3.99 12 Z M13 12 A5 5 0 1 1 12.99 12 Z",
-    facets: ["M4 7 L4 17", "M20 7 L20 17"],
-    isPair: true,
-  },
+  Round: { outline: "M12,2 A10,10 0 1,1 11.99,2 Z" },
+  Oval: { outline: "M12,1.5 C17.5,1.5 21,6 21,12 C21,18 17.5,22.5 12,22.5 C6.5,22.5 3,18 3,12 C3,6 6.5,1.5 12,1.5 Z" },
+  Pear: { outline: "M12,1.5 C15,5 19,10.5 19,14.5 A7,7 0 1,1 5,14.5 C5,10.5 9,5 12,1.5 Z" },
+  Marquise: { outline: "M12,1 C16,5.5 19,9 19,12 C19,15 16,18.5 12,23 C8,18.5 5,15 5,12 C5,9 8,5.5 12,1 Z" },
+  Heart: { outline: "M12,21 C3,14.5 2,8.5 6.3,5.5 C9,3.7 12,5.5 12,8.2 C12,5.5 15,3.7 17.7,5.5 C22,8.5 21,14.5 12,21 Z" },
+  Cushion: { outline: "M4,4 Q4,12 4,20 Q12,20 20,20 Q20,12 20,4 Q12,4 4,4 Z", rx: 6 },
+  "Cushion B": { outline: "M3.5,3.5 Q3.5,12 3.5,20.5 Q12,20.5 20.5,20.5 Q20.5,12 20.5,3.5 Q12,3.5 3.5,3.5 Z", rx: 7 },
+  Emerald: { outline: "M8,3 H16 L21,8 V16 L16,21 H8 L3,16 V8 Z" },
+  "Sq.emerald": { outline: "M7,3 H17 L21,7 V17 L17,21 H7 L3,17 V7 Z" },
+  Princess: { outline: "M4,4 H20 V20 H4 Z" },
+  Square: { outline: "M4,4 H20 V20 H4 Z" },
+  Radiant: { outline: "M7.5,3 H16.5 L21,7.5 V16.5 L16.5,21 H7.5 L3,16.5 V7.5 Z" },
+  "L Radiant": { outline: "M6.5,3 H14.5 L18.5,7 V21 L9.5,20.5 L5.5,17 V7 Z" },
+  "Other Cuts": { outline: "M12,1.5 L20.5,8 L17.5,19 L6.5,19 L3.5,8 Z" },
+  Pair: { isPair: true },
 };
 
 export const ShapeIcon = ({ shape, active }) => {
   const data = SHAPE_ICONS[shape];
-  const id = `diamond-grad-${shape.replace(/\s/g, "")}-${active ? "on" : "off"}`;
   if (!data) return null;
 
-  const gradientStops = active ? (
-    <>
-      <stop offset="0%" stopColor="#3a3120" />
-      <stop offset="45%" stopColor="#000000" />
-      <stop offset="100%" stopColor="#3a3120" />
-    </>
-  ) : (
-    <>
-      <stop offset="0%" stopColor="#4b5563" />
-      <stop offset="45%" stopColor="#18181b" />
-      <stop offset="100%" stopColor="#3f3f46" />
-    </>
+  const fill = active ? "#D4AF37" : "#e4e4e7";
+  const stroke = active ? "#0C1E30" : "#71717a";
+
+  if (data.isPair) {
+    return (
+      <svg viewBox="0 0 24 24" className="h-8 w-8" aria-hidden="true">
+        <circle cx="8" cy="12" r="6" fill={fill} stroke={stroke} strokeWidth="0.7" />
+        <circle cx="16" cy="12" r="6" fill={fill} stroke={stroke} strokeWidth="0.7" />
+      </svg>
+    );
+  }
+
+  return (
+    <svg viewBox="0 0 24 24" className="h-8 w-8" aria-hidden="true">
+      <path d={data.outline} fill={fill} stroke={stroke} strokeWidth="0.7" strokeLinejoin="round" />
+    </svg>
   );
+};
 
   if (data.isPair) {
     return (
