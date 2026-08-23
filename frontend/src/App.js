@@ -10,6 +10,8 @@ import Home from "@/pages/Home";
 import Catalog from "@/pages/Catalog";
 import DiamondDetail from "@/pages/DiamondDetail";
 import Login from "@/pages/Login";
+import ForgotPassword from "@/pages/ForgotPassword";
+import ResetPassword from "@/pages/ResetPassword";
 import Register from "@/pages/Register";
 import Contact from "@/pages/Contact";
 import Admin from "@/pages/Admin";
@@ -52,6 +54,8 @@ function App() {
               <Route path="/collection" element={<Catalog />} />
               <Route path="/diamonds/:id" element={<DiamondDetail />} />
               <Route path="/login" element={<Login />} />
+              <Route path="/forgot-password" element={<ForgotPassword />} />
+              <Route path="/reset-password" element={<ResetPassword />} />
               <Route path="/register" element={<Register />} />
               <Route path="/contact" element={<Contact />} />
               <Route path="/admin" element={<Admin />} />
