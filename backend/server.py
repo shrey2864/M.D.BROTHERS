@@ -194,6 +194,11 @@ def create_refresh_token(user_id: str) -> str:
     return jwt.encode(payload, os.environ["JWT_SECRET"], algorithm=JWT_ALGORITHM)
 
 
+def create_reset_token(user_id: str) -> str:
+    payload = {"sub": user_id, "exp": datetime.now(timezone.utc) + timedelta(minutes=30), "type": "reset"}
+    return jwt.encode(payload, os.environ["JWT_SECRET"], algorithm=JWT_ALGORITHM)
+
+
 def set_auth_cookies(response: Response, user_id: str, email: str):
     response.set_cookie("access_token", create_access_token(user_id, email), httponly=True, secure=True, samesite="none", max_age=3600, path="/")
     response.set_cookie("refresh_token", create_refresh_token(user_id), httponly=True, secure=True, samesite="none", max_age=604800, path="/")
@@ -338,6 +343,62 @@ async def refresh(request: Request, response: Response):
         raise HTTPException(status_code=401, detail="User not found")
     response.set_cookie("access_token", create_access_token(user["user_id"], user["email"]), httponly=True, secure=True, samesite="none", max_age=3600, path="/")
     return {"status": "refreshed"}
+
+class ForgotPasswordBody(BaseModel):
+    email: EmailStr
+
+
+@api_router.post("/auth/forgot-password")
+async def forgot_password(body: ForgotPasswordBody):
+    email = body.email.lower()
+    user = await db.users.find_one({"email": email}, {"_id": 0})
+    if user and RESEND_API_KEY:
+        reset_token = create_reset_token(user["user_id"])
+        reset_url = f"{os.environ.get('FRONTEND_URL', '').rstrip('/')}/reset-password?token={reset_token}"
+        subject = f"Reset your {EMAIL_FROM_NAME} password"
+        html = (
+            '<table role="presentation" width="100%"><tr><td style="padding:24px;font-family:Arial,sans-serif;color:#111">'
+            '<h2 style="margin:0 0 16px">Reset your password</h2>'
+            f'<p>Dear {escape(user["name"])},</p>'
+            '<p>We received a request to reset your password. This link expires in 30 minutes. '
+            'If you did not request this, you can safely ignore this email.</p>'
+            f'<p><a href="{escape(reset_url)}" style="display:inline-block;background:#2E7CB8;color:#fff;'
+            'padding:12px 28px;text-decoration:none;font-size:13px;letter-spacing:2px">RESET PASSWORD</a></p>'
+            f'<p style="font-size:12px;color:#888;margin-top:24px">Sent by {escape(EMAIL_FROM_NAME)}. '
+            'We never ask for your password or card details by email.</p>'
+            '</td></tr></table>'
+        )
+        try:
+            await send_email(to=user["email"], subject=subject, html=html)
+        except HTTPException:
+            logger.error(f"Password reset email failed for {email}")
+    return {"status": "sent"}
+
+
+class ResetPasswordBody(BaseModel):
+    token: str
+    new_password: str
+
+
+@api_router.post("/auth/reset-password")
+async def reset_password(body: ResetPasswordBody):
+    if len(body.new_password) < 8:
+        raise HTTPException(status_code=400, detail="Password must be at least 8 characters")
+    try:
+        payload = jwt.decode(body.token, os.environ["JWT_SECRET"], algorithms=[JWT_ALGORITHM])
+        if payload.get("type") != "reset":
+            raise HTTPException(status_code=400, detail="Invalid reset link")
+    except jwt.ExpiredSignatureError:
+        raise HTTPException(status_code=400, detail="Reset link has expired, please request a new one")
+    except jwt.InvalidTokenError:
+        raise HTTPException(status_code=400, detail="Invalid reset link")
+    result = await db.users.update_one(
+        {"user_id": payload["sub"]},
+        {"$set": {"password_hash": hash_password(body.new_password)}},
+    )
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="User not found")
+    return {"status": "reset"}
 
 
 # ---------------- Diamonds ----------------
