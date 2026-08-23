@@ -125,12 +125,24 @@ export default function DiamondDetail() {
 
           <div className="mt-8 border-y border-white/10 py-6">
             {diamond.price != null ? (
-              <div>
-                <p className="font-serif text-4xl text-gold" data-testid="diamond-price">${diamond.price.toLocaleString()}</p>
-                <p className="mt-2 font-mono text-[10px] uppercase tracking-[0.25em] text-zinc-500">
-                  ${Math.round(diamond.price / diamond.carat).toLocaleString()} per carat
-                </p>
-              </div>
+           <div>
+             <p className="font-serif text-4xl text-gold" data-testid="diamond-price">
+              ${diamond.price.toLocaleString()}
+              {diamond.DISC_PER != null && (
+                <span className="ml-3 font-mono text-base text-zinc-400" data-testid="diamond-disc">
+                 ({Math.round(parseFloat(diamond.DISC_PER))}%)
+                </span>
+              )}
+            </p>
+            <p className="mt-2 font-mono text-[10px] uppercase tracking-[0.25em] text-zinc-500">
+              ${Math.round(diamond.price / diamond.carat).toLocaleString()} per carat
+              {diamond.DISC_PER != null && (
+                <span className="ml-2 text-zinc-600" data-testid="diamond-disc-per-carat">
+                  ({Math.round(parseFloat(diamond.DISC_PER))}%)
+                </span>
+              )}
+             </p>
+           </div>
             ) : (
               <div data-testid="diamond-price-locked">
                 <p className="font-serif text-2xl italic text-zinc-500">Price available to trade clients</p>
