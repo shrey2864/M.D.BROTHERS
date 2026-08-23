@@ -67,10 +67,10 @@ def get_object(path: str):
     resp = requests.get(path, timeout=60)
     resp.raise_for_status()
     return resp.content, "application/octet-stream"
-# ---------------- Email (Emergent managed Resend proxy) ----------------
-EMAIL_BASE_URL = "https://integrations.emergentagent.com"
-EMAIL_KEY = os.environ.get("EMERGENT_EMAIL_KEY")
-EMAIL_FROM_NAME = os.environ.get("EMAIL_FROM_NAME", "Shree Diamond Exports")
+# ---------------- Email (Resend) ----------------
+RESEND_API_KEY = os.environ.get("RESEND_API_KEY")
+EMAIL_FROM_NAME = os.environ.get("EMAIL_FROM_NAME", "M.D. Brothers")
+EMAIL_FROM_ADDRESS = os.environ.get("EMAIL_FROM_ADDRESS", "onboarding@resend.dev")
 EMAIL_REPLY_TO = os.environ.get("EMAIL_REPLY_TO")
 OWNER_EMAIL = os.environ.get("OWNER_EMAIL")
 
@@ -148,14 +148,19 @@ def _assert_safe_email(subject: str, html: str) -> None:
 
 async def send_email(*, to: str, subject: str, html: str, reply_to: Optional[str] = None) -> Optional[str]:
     _assert_safe_email(subject, html)
-    payload = {"to": [to], "subject": subject, "html": html, "from_name": EMAIL_FROM_NAME}
+    payload = {
+        "from": f"{EMAIL_FROM_NAME} <{EMAIL_FROM_ADDRESS}>",
+        "to": [to],
+        "subject": subject,
+        "html": html,
+    }
     if reply_to or EMAIL_REPLY_TO:
-        payload["contact_email"] = reply_to or EMAIL_REPLY_TO
+        payload["reply_to"] = reply_to or EMAIL_REPLY_TO
     try:
         async with httpx.AsyncClient(timeout=30) as client_http:
             resp = await client_http.post(
-                f"{EMAIL_BASE_URL}/api/v1/email/send",
-                headers={"X-Email-Key": EMAIL_KEY},
+                "https://api.resend.com/emails",
+                headers={"Authorization": f"Bearer {RESEND_API_KEY}", "Content-Type": "application/json"},
                 json=payload,
             )
         resp.raise_for_status()
@@ -669,7 +674,7 @@ async def admin_set_user_status(user_id: str, body: UserStatusBody, user: dict =
     email_sent = False
     if body.status == "approved":
         buyer = await db.users.find_one({"user_id": user_id}, {"_id": 0})
-        if buyer and EMAIL_KEY:
+        if buyer and RESEND_API_KEY:
             login_url = f"{os.environ.get('FRONTEND_URL', '').rstrip('/')}/login"
             subject = f"Your {EMAIL_FROM_NAME} trade account is approved"
             html = (
@@ -912,7 +917,7 @@ async def create_enquiry(body: EnquiryBody):
     await db.enquiries.insert_one(doc)
 
     email_sent = False
-    if OWNER_EMAIL and EMAIL_KEY:
+    if OWNER_EMAIL and RESEND_API_KEY:
         subject = f"New enquiry — {EMAIL_FROM_NAME}"
         diamond_line = f'<p><strong>Diamond SKU:</strong> {escape(body.diamond_sku)}</p>' if body.diamond_sku else ""
         html = (
