@@ -166,13 +166,6 @@ const QUICK_TOGGLES = [
   { key: "nobgm", label: "NO BGM", pills: { fluorescence: ["None"] } },
 ];
 
-export const ShapeIcon = ({ shape, active }) => (
-  <svg viewBox="0 0 24 24" className={`h-9 w-9 ${active ? "text-black" : "text-zinc-400"}`}
-    fill="none" stroke="currentColor" strokeWidth="1.1" aria-hidden="true">
-    {SHAPE_ICONS[shape]}
-  </svg>
-);
-
 const Gate = ({ user }) => (
   <div className="mx-auto max-w-[1440px] px-6 pb-32 pt-40" data-testid="search-gate">
     <Overline>{!user ? "Members Only" : "Approval Pending"}</Overline>
