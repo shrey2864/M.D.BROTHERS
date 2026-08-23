@@ -69,6 +69,57 @@ export const SHAPE_ICONS = {
   },
 };
 
+export const ShapeIcon = ({ shape, active }) => {
+  const data = SHAPE_ICONS[shape];
+  const id = `diamond-grad-${shape.replace(/\s/g, "")}-${active ? "on" : "off"}`;
+  if (!data) return null;
+
+  const gradientStops = active ? (
+    <>
+      <stop offset="0%" stopColor="#3a3120" />
+      <stop offset="45%" stopColor="#000000" />
+      <stop offset="100%" stopColor="#3a3120" />
+    </>
+  ) : (
+    <>
+      <stop offset="0%" stopColor="#4b5563" />
+      <stop offset="45%" stopColor="#18181b" />
+      <stop offset="100%" stopColor="#3f3f46" />
+    </>
+  );
+
+  if (data.isPair) {
+    return (
+      <svg viewBox="0 0 24 24" className="h-9 w-9" aria-hidden="true">
+        <defs>
+          <linearGradient id={id} x1="0%" y1="0%" x2="100%" y2="100%">
+            {gradientStops}
+          </linearGradient>
+        </defs>
+        <circle cx="8" cy="12" r="5.5" fill={`url(#${id})`} stroke={active ? "#000" : "#71717a"} strokeWidth="0.6" />
+        <circle cx="16" cy="12" r="5.5" fill={`url(#${id})`} stroke={active ? "#000" : "#71717a"} strokeWidth="0.6" />
+        <ellipse cx="6" cy="9.5" rx="1.6" ry="0.9" fill="rgba(255,255,255,0.28)" transform="rotate(-25 6 9.5)" />
+        <ellipse cx="14" cy="9.5" rx="1.6" ry="0.9" fill="rgba(255,255,255,0.28)" transform="rotate(-25 14 9.5)" />
+      </svg>
+    );
+  }
+
+  return (
+    <svg viewBox="0 0 24 24" className="h-9 w-9" aria-hidden="true">
+      <defs>
+        <linearGradient id={id} x1="0%" y1="0%" x2="100%" y2="100%">
+          {gradientStops}
+        </linearGradient>
+      </defs>
+      <path d={data.outline} fill={`url(#${id})`} stroke={active ? "#000" : "#71717a"} strokeWidth="0.6" />
+      {data.facets.map((f, i) => (
+        <path key={i} d={f} fill="none" stroke={active ? "rgba(0,0,0,0.35)" : "rgba(255,255,255,0.25)"} strokeWidth="0.5" />
+      ))}
+      <ellipse cx="9.5" cy="7" rx="3.2" ry="1.6" fill="rgba(255,255,255,0.28)" transform="rotate(-25 9.5 7)" />
+    </svg>
+  );
+};
+
 const CARAT_PRESETS = [
   { label: "All", range: null },
   { label: "30s Down", range: [0.18, 0.29] },
