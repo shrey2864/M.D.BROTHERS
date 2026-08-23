@@ -896,11 +896,13 @@ def map_feed_record(rec: dict) -> Optional[dict]:
         ),
         "source": "feed",
     }
-    price = _to_float(_pick(rec, "price", "price_usd", "total_price", "amount", "value", "total", "rate", "net_value"))
-    if price is not None:
-        doc["price"] = price
-    return doc
-
+        price = _to_float(_pick(rec, "price", "price_usd", "total_price", "amount", "value", "total", "rate", "net_value"))
+        if price is not None:
+            doc["price"] = price
+        disc_per = _to_float(_pick(rec, "disc_per", "discount", "disc", "discount_percent"))
+        if disc_per is not None:
+             doc["DISC_PER"] = disc_per
+        return doc
 
 @api_router.post("/stock-feed/sync")
 async def sync_stock_feed(user: dict = Depends(require_admin)):
