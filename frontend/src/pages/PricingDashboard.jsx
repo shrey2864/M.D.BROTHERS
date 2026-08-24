@@ -71,7 +71,7 @@ export default function PricingDashboard() {
             className="lux-input"
             data-testid="pricing-packet-filter-input"
           />
-          
+          <a
             href={`${API_BASE}/pricing/quote-stones/export${packetFilter ? `?packet_no=${encodeURIComponent(packetFilter)}` : ""}`}
             target="_blank"
             rel="noopener noreferrer"
