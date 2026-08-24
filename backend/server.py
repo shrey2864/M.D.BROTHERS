@@ -1,5 +1,8 @@
 from dotenv import load_dotenv
 from pathlib import Path
+import openpyxl
+from openpyxl.utils import get_column_letter
+from fastapi.responses import StreamingResponse
 
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
@@ -1060,6 +1063,9 @@ async def startup():
     await db.login_attempts.create_index("identifier")
     await db.diamonds.create_index("diamond_id", unique=True)
     await db.diamonds.create_index([("shape", 1), ("color", 1), ("clarity", 1), ("carat", 1)])
+    await db.quote_stones.create_index("quote_stone_id", unique=True)
+    await db.quote_stones.create_index([("packet_no", 1), ("plan_no", 1)])
+    await db.rapaport_rates.create_index([("shape", 1), ("color", 1), ("clarity", 1)])
     await seed_admin()
     await seed_demo_buyer()
     if await db.diamonds.count_documents({}) == 0:
@@ -1070,6 +1076,353 @@ async def shutdown_db_client():
     client.close()
 
 
+# =====================================================================
+# PRICING CALCULATOR ADDITION
+# Paste this whole block into server.py, BEFORE the line:
+#     app.include_router(api_router)
+# It reuses api_router, db, get_current_user, require_admin, hash_password,
+# verify_password, public_user, DIAMOND_IMAGES etc. that already exist above.
+#
+# Extra imports needed at the top of server.py (add next to your other imports):
+#   import openpyxl
+#   from openpyxl.utils import get_column_letter
+#   from fastapi.responses import StreamingResponse
+#
+# Extra dependency to install:
+#   pip install openpyxl   (add "openpyxl" to requirements.txt)
+# =====================================================================
+
+from openpyxl import Workbook
+from openpyxl.utils import get_column_letter
+from fastapi.responses import StreamingResponse
+
+# ---------------- Roles & permissions ----------------
+# Existing roles: "admin", "buyer". New roles added by this module:
+#   "staff"            -> enters stone details, NEVER sees pricing fields
+#   "pricing_manager"  -> sets discount, sees Rapaport/Gross/Labour/Net, exports Excel
+#                          (admin can grant/revoke individual permissions per login)
+
+PRICING_MANAGER_DEFAULT_PERMISSIONS = {
+    "set_discount": True,
+    "view_pricing": True,   # Rapaport rate, Gross Value, Labour, Net Value
+    "export_excel": True,
+}
+
+
+def user_has_pricing_access(user: dict) -> bool:
+    """True for admin, or a pricing_manager whose permissions allow viewing pricing."""
+    if user.get("role") == "admin":
+        return True
+    if user.get("role") == "pricing_manager":
+        return bool(user.get("permissions", {}).get("view_pricing"))
+    return False
+
+
+def user_can_set_discount(user: dict) -> bool:
+    if user.get("role") == "admin":
+        return True
+    if user.get("role") == "pricing_manager":
+        return bool(user.get("permissions", {}).get("set_discount"))
+    return False
+
+
+def user_can_export_excel(user: dict) -> bool:
+    if user.get("role") == "admin":
+        return True
+    if user.get("role") == "pricing_manager":
+        return bool(user.get("permissions", {}).get("export_excel"))
+    return False
+
+
+async def require_pricing_access(user: dict = Depends(get_current_user)) -> dict:
+    if not user_has_pricing_access(user):
+        raise HTTPException(status_code=403, detail="Pricing access only")
+    return user
+
+
+async def require_staff_or_pricing(user: dict = Depends(get_current_user)) -> dict:
+    if user.get("role") not in ("staff", "pricing_manager", "admin"):
+        raise HTTPException(status_code=403, detail="Staff access only")
+    return user
+
+
+# ---------------- Admin: create/manage staff & pricing-manager logins ----------------
+class StaffUserBody(BaseModel):
+    name: str
+    email: EmailStr
+    password: str
+    role: str  # "staff" or "pricing_manager"
+    permissions: Optional[dict] = None  # only used when role == "pricing_manager"
+
+
+@api_router.post("/admin/staff-users")
+async def admin_create_staff_user(body: StaffUserBody, user: dict = Depends(require_admin)):
+    if body.role not in ("staff", "pricing_manager"):
+        raise HTTPException(status_code=400, detail="role must be 'staff' or 'pricing_manager'")
+    email = body.email.lower()
+    if await db.users.find_one({"email": email}):
+        raise HTTPException(status_code=400, detail="Email already registered")
+    perms = None
+    if body.role == "pricing_manager":
+        perms = {**PRICING_MANAGER_DEFAULT_PERMISSIONS, **(body.permissions or {})}
+    doc = {
+        "user_id": str(uuid.uuid4()),
+        "name": body.name.strip(),
+        "email": email,
+        "password_hash": hash_password(body.password),
+        "role": body.role,
+        "status": "approved",
+        "permissions": perms,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    }
+    await db.users.insert_one(doc)
+    return public_user(doc)
+
+
+@api_router.get("/admin/staff-users")
+async def admin_list_staff_users(user: dict = Depends(require_admin)):
+    items = await db.users.find(
+        {"role": {"$in": ["staff", "pricing_manager"]}}, {"_id": 0, "password_hash": 0}
+    ).sort("created_at", -1).to_list(200)
+    return {"items": items, "total": len(items)}
+
+
+class StaffPermissionsBody(BaseModel):
+    permissions: dict
+
+
+@api_router.put("/admin/staff-users/{user_id}/permissions")
+async def admin_update_staff_permissions(user_id: str, body: StaffPermissionsBody, user: dict = Depends(require_admin)):
+    target = await db.users.find_one({"user_id": user_id})
+    if not target or target.get("role") != "pricing_manager":
+        raise HTTPException(status_code=404, detail="Pricing-manager user not found")
+    merged = {**target.get("permissions", {}), **body.permissions}
+    await db.users.update_one({"user_id": user_id}, {"$set": {"permissions": merged}})
+    return {"status": "updated", "permissions": merged}
+
+
+@api_router.delete("/admin/staff-users/{user_id}")
+async def admin_delete_staff_user(user_id: str, user: dict = Depends(require_admin)):
+    result = await db.users.delete_one({"user_id": user_id, "role": {"$in": ["staff", "pricing_manager"]}})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Staff user not found")
+    return {"status": "deleted"}
+
+
+# ---------------- Rapaport rate list (per shape CSV upload + lookup) ----------------
+# CSV row format (as supplied): Shape, Clarity, Color, CaratMin, CaratMax, Rate, Date
+# One file per shape; a new upload REPLACES all existing rows for that shape.
+
+@api_router.post("/admin/rapaport-rates/upload")
+async def upload_rapaport_rates(file: UploadFile = File(...), user: dict = Depends(require_admin)):
+    raw = (await file.read()).decode("utf-8-sig")
+    reader = csv.reader(io.StringIO(raw))
+    rows = []
+    shape_seen = set()
+    for row in reader:
+        if not row or len(row) < 6:
+            continue
+        shape, clarity, color, cmin, cmax, rate = [c.strip() for c in row[:6]]
+        try:
+            cmin_f, cmax_f, rate_f = float(cmin), float(cmax), float(rate)
+        except ValueError:
+            continue
+        shape_seen.add(shape.upper())
+        rows.append({
+            "shape": shape.upper(),
+            "clarity": clarity.upper(),
+            "color": color.upper(),
+            "carat_min": cmin_f,
+            "carat_max": cmax_f,
+            "rate": rate_f,
+        })
+    if not rows:
+        raise HTTPException(status_code=400, detail="No valid rows found in file")
+    if len(shape_seen) > 1:
+        raise HTTPException(status_code=400, detail="File must contain a single shape per upload")
+    shape = next(iter(shape_seen))
+    now = datetime.now(timezone.utc).isoformat()
+    for r in rows:
+        r["updated_at"] = now
+    await db.rapaport_rates.delete_many({"shape": shape})
+    await db.rapaport_rates.insert_many(rows)
+    return {"status": "uploaded", "shape": shape, "rows": len(rows), "updated_at": now}
+
+
+@api_router.get("/admin/rapaport-rates/summary")
+async def rapaport_rates_summary(user: dict = Depends(require_admin)):
+    pipeline = [
+        {"$group": {"_id": "$shape", "rows": {"$sum": 1}, "updated_at": {"$max": "$updated_at"}}},
+        {"$sort": {"_id": 1}},
+    ]
+    items = await db.rapaport_rates.aggregate(pipeline).to_list(100)
+    return {"items": [{"shape": i["_id"], "rows": i["rows"], "updated_at": i["updated_at"]} for i in items]}
+
+
+async def lookup_rapaport_rate(shape: str, carat: float, color: str, clarity: str) -> Optional[float]:
+    row = await db.rapaport_rates.find_one({
+        "shape": shape.upper(),
+        "color": color.upper(),
+        "clarity": clarity.upper(),
+        "carat_min": {"$lte": carat},
+        "carat_max": {"$gte": carat},
+    }, {"_id": 0, "rate": 1})
+    return row["rate"] if row else None
+
+
+# ---------------- Labour lookup (stub until labour chart is uploaded) ----------------
+# TODO: replace with a real db.labour_rates lookup once the labour Excel is supplied,
+# same shape as rapaport rates (by shape + carat bracket, per what was discussed).
+async def lookup_labour(shape: str, carat: float) -> float:
+    row = await db.labour_rates.find_one({
+        "shape": shape.upper(),
+        "carat_min": {"$lte": carat},
+        "carat_max": {"$gte": carat},
+    }, {"_id": 0, "labour": 1})
+    return row["labour"] if row else 0.0
+
+
+# ---------------- Quote stones (staff input, packet/plan structure) ----------------
+class QuoteStoneBody(BaseModel):
+    packet_no: str
+    plan_no: str
+    shape: str          # e.g. "EM", "OV", "RD", "PS", "HR"
+    pol_cts: float
+    color: str
+    clarity: str
+    cut: Optional[str] = None
+    polish: Optional[str] = None
+    symmetry: Optional[str] = None
+    fluorescence: Optional[str] = None
+    black_no_black: Optional[str] = None
+    table_pct: Optional[float] = None
+    girdle_pct: Optional[float] = None
+    td: Optional[float] = None
+    ratio: Optional[float] = None
+    remarks: Optional[str] = None
+
+
+def staff_view(stone: dict) -> dict:
+    """Strip every pricing field before returning to a staff-role user."""
+    hidden = {"rapaport_rate", "discount_percent", "gross_value", "labour", "net_value", "priced_by", "priced_at"}
+    return {k: v for k, v in stone.items() if k not in hidden}
+
+
+def with_computed_pricing(stone: dict) -> dict:
+    """Fill in gross_value / net_value live from the stored discount_percent."""
+    out = dict(stone)
+    rate = out.get("rapaport_rate")
+    disc = out.get("discount_percent")
+    labour = out.get("labour") or 0.0
+    if rate is not None and disc is not None:
+        price_per_ct = rate * (1 - disc / 100)
+        gross = price_per_ct * out["pol_cts"]
+        out["gross_value"] = round(gross, 2)
+        out["net_value"] = round(gross - labour, 2)
+    else:
+        out["gross_value"] = None
+        out["net_value"] = None
+    return out
+
+
+@api_router.post("/pricing/quote-stones")
+async def create_quote_stone(body: QuoteStoneBody, user: dict = Depends(require_staff_or_pricing)):
+    doc = body.model_dump()
+    doc["quote_stone_id"] = str(uuid.uuid4())
+    doc["status"] = "pending"  # becomes "priced" once discount is set
+    doc["rapaport_rate"] = await lookup_rapaport_rate(body.shape, body.pol_cts, body.color, body.clarity)
+    doc["labour"] = await lookup_labour(body.shape, body.pol_cts)
+    doc["discount_percent"] = None
+    doc["created_by"] = user["user_id"]
+    doc["created_at"] = datetime.now(timezone.utc).isoformat()
+    await db.quote_stones.insert_one(doc)
+    doc.pop("_id", None)
+    # Staff gets back only the non-pricing fields, even for what they just created
+    return doc if user_has_pricing_access(user) else staff_view(doc)
+
+
+@api_router.get("/pricing/quote-stones")
+async def list_quote_stones(
+    packet_no: Optional[str] = None,
+    status: Optional[str] = None,
+    user: dict = Depends(require_staff_or_pricing),
+):
+    query = {}
+    if packet_no:
+        query["packet_no"] = packet_no
+    if status:
+        query["status"] = status
+    items = await db.quote_stones.find(query, {"_id": 0}).sort("created_at", -1).to_list(500)
+    if user_has_pricing_access(user):
+        items = [with_computed_pricing(i) for i in items]
+        return {"items": items, "total": len(items)}
+    return {"items": [staff_view(i) for i in items], "total": len(items)}
+
+
+class SetDiscountBody(BaseModel):
+    discount_percent: float
+
+
+@api_router.post("/pricing/quote-stones/{quote_stone_id}/discount")
+async def set_quote_stone_discount(quote_stone_id: str, body: SetDiscountBody, user: dict = Depends(get_current_user)):
+    if not user_can_set_discount(user):
+        raise HTTPException(status_code=403, detail="Not permitted to set discount")
+    result = await db.quote_stones.update_one(
+        {"quote_stone_id": quote_stone_id},
+        {"$set": {
+            "discount_percent": body.discount_percent,
+            "status": "priced",
+            "priced_by": user["user_id"],
+            "priced_at": datetime.now(timezone.utc).isoformat(),
+        }},
+    )
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Quote stone not found")
+    stone = await db.quote_stones.find_one({"quote_stone_id": quote_stone_id}, {"_id": 0})
+    return with_computed_pricing(stone)
+
+
+# ---------------- Excel export (GT-7 style layout) ----------------
+GT7_COLUMNS = [
+    ("packet_no", "PacketNo"), ("plan_no", "PlanNo"), ("shape", "Shape"),
+    ("pol_cts", "PolCts"), ("color", "RefColor"), ("clarity", "RefPurity"),
+    ("cut", "SarinCut"), ("symmetry", "Symm"), ("fluorescence", "Fls"),
+    ("black_no_black", "BlackNoBlack"), ("rapaport_rate", "Rapaport"),
+    ("discount_percent", "RefDisc%"), ("gross_value", "GrossValue"),
+    ("labour", "Labour"), ("net_value", "NetValue"),
+    ("table_pct", "Table%"), ("girdle_pct", "Girdle%"), ("td", "TD"),
+    ("ratio", "Ratio"), ("remarks", "Remarks"),
+]
+
+
+@api_router.get("/pricing/quote-stones/export")
+async def export_quote_stones_excel(packet_no: Optional[str] = None, user: dict = Depends(get_current_user)):
+    if not user_can_export_excel(user):
+        raise HTTPException(status_code=403, detail="Not permitted to export")
+    query = {"packet_no": packet_no} if packet_no else {}
+    items = await db.quote_stones.find(query, {"_id": 0}).sort("created_at", -1).to_list(2000)
+    items = [with_computed_pricing(i) for i in items]
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Quote"
+    for col_idx, (_, header) in enumerate(GT7_COLUMNS, start=1):
+        ws.cell(row=1, column=col_idx, value=header)
+    for row_idx, stone in enumerate(items, start=2):
+        for col_idx, (key, _) in enumerate(GT7_COLUMNS, start=1):
+            ws.cell(row=row_idx, column=col_idx, value=stone.get(key))
+    for col_idx in range(1, len(GT7_COLUMNS) + 1):
+        ws.column_dimensions[get_column_letter(col_idx)].width = 14
+
+    buf = io.BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+    filename = f"quote-{packet_no or 'all'}.xlsx"
+    return StreamingResponse(
+        buf,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
 app.include_router(api_router)
 
 _cors_env = os.environ.get("CORS_ORIGINS", "")
