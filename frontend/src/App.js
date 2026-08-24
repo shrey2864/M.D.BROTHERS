@@ -18,6 +18,9 @@ import Admin from "@/pages/Admin";
 import SearchSelect from "@/pages/SearchSelect";
 import Dashboard from "@/pages/Dashboard";
 import MatchPair from "@/pages/MatchPair";
+import PortalAccess from "@/pages/PortalAccess";
+import StaffEntry from "@/pages/StaffEntry";
+import PricingDashboard from "@/pages/PricingDashboard";
 
 const ScrollManager = () => {
   const { pathname } = useLocation();
@@ -25,6 +28,19 @@ const ScrollManager = () => {
     window.scrollTo(0, 0);
   }, [pathname]);
   return null;
+};
+
+// Portal routes get no public Header/Footer — just the tool itself.
+const Chrome = ({ children }) => {
+  const { pathname } = useLocation();
+  const isPortal = pathname.startsWith("/portal-access");
+  return (
+    <>
+      {!isPortal && <Header />}
+      <main>{children}</main>
+      {!isPortal && <Footer />}
+    </>
+  );
 };
 
 function App() {
@@ -41,14 +57,12 @@ function App() {
       lenis.destroy();
     };
   }, []);
-
   return (
     <div className="App">
       <BrowserRouter>
         <AuthProvider>
           <ScrollManager />
-          <Header />
-          <main>
+          <Chrome>
             <Routes>
               <Route path="/" element={<Home />} />
               <Route path="/collection" element={<Catalog />} />
@@ -62,14 +76,15 @@ function App() {
               <Route path="/search" element={<SearchSelect />} />
               <Route path="/dashboard" element={<Dashboard />} />
               <Route path="/match-pair" element={<MatchPair />} />
+              <Route path="/portal-access" element={<PortalAccess />} />
+              <Route path="/portal-access/entry" element={<StaffEntry />} />
+              <Route path="/portal-access/pricing" element={<PricingDashboard />} />
             </Routes>
-          </main>
-          <Footer />
+          </Chrome>
           <Toaster theme="dark" position="bottom-right" />
         </AuthProvider>
       </BrowserRouter>
     </div>
   );
 }
-
 export default App;
