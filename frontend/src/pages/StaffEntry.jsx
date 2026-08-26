@@ -10,9 +10,27 @@ const EMPTY = {
   black_no_black: "No black", table_pct: "", girdle_pct: "", td: "", ratio: "", remarks: "",
 };
 
-// Shape codes match your Rapaport CSV files (e.g. CSV2_ROUND uses "BR", CSV2_PEAR uses "PS").
-// Add more here as you upload more shape-wise Rapaport CSVs.
-const SHAPES = ["BR", "PS", "EM", "OV", "HR", "RDT", "CU", "MQ"];
+// Full names shown to staff; the "code" is what's actually sent to the backend.
+// Round Brilliant has its own Rapaport rate list ("BR"). Every other shape —
+// all "fancy shapes" — shares one combined Rapaport rate list ("PS"), so they
+// all map to the same code here. This matches how Rapaport itself prices them.
+const SHAPES = [
+  { code: "BR", label: "Round" },
+  { code: "PS", label: "Pear" },
+  { code: "PS", label: "Marquise" },
+  { code: "PS", label: "Oval" },
+  { code: "PS", label: "Radiant" },
+  { code: "PS", label: "Cushion Brilliant" },
+  { code: "PS", label: "Cushion Modified Brilliant" },
+  { code: "PS", label: "Heart" },
+  { code: "PS", label: "Old Mine" },
+  { code: "PS", label: "Baguette" },
+  { code: "PS", label: "Emerald" },
+];
+// For display, map the stored code back to a readable label (Round is unambiguous;
+// "PS" covers every fancy shape, so it's shown generically as "Fancy shape").
+const SHAPE_LABEL = { BR: "Round", PS: "Fancy shape" };
+
 const GRADES = ["EX", "VG", "GD"];
 const FLUORESCENCE = ["NON", "FNT", "MED", "STG"];
 const COLORS = ["D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N"];
@@ -20,7 +38,7 @@ const CLARITIES = ["IF", "VVS1", "VVS2", "VS1", "VS2", "SI1", "SI2", "SI3", "I1"
 
 export default function StaffEntry() {
   const { user } = useAuth();
-  const [form, setForm] = useState({ ...EMPTY });
+  const [form, setForm] = useState({ ...EMPTY, shapeLabel: "Round" });
   const [saving, setSaving] = useState(false);
   const [items, setItems] = useState([]);
 
@@ -43,21 +61,31 @@ export default function StaffEntry() {
 
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
 
+  // Staff picks a full shape name; we look up its Rapaport code separately
+  // so "Marquise", "Oval", etc. all correctly send shape: "PS" to the backend,
+  // while what's shown on screen stays the specific name they picked.
+  const setShapeLabel = (label) => {
+    const match = SHAPES.find((s) => s.label === label);
+    setForm((f) => ({ ...f, shapeLabel: label, shape: match ? match.code : f.shape }));
+  };
+
   const submit = async (e) => {
     e.preventDefault();
     setSaving(true);
+    const { shapeLabel, ...rest } = form;
     const payload = {
-      ...form,
+      ...rest,
       pol_cts: parseFloat(form.pol_cts),
       table_pct: form.table_pct ? parseFloat(form.table_pct) : null,
       girdle_pct: form.girdle_pct ? parseFloat(form.girdle_pct) : null,
       td: form.td ? parseFloat(form.td) : null,
       ratio: form.ratio ? parseFloat(form.ratio) : null,
+      remarks: form.remarks ? `${form.remarks} [${shapeLabel}]` : `[${shapeLabel}]`, // keep the specific shape name on record
     };
     try {
       await api.post("/pricing/quote-stones", payload);
       toast.success(`Stone added — Packet ${form.packet_no}, Plan ${form.plan_no}`);
-      setForm({ ...EMPTY, packet_no: form.packet_no, plan_no: form.plan_no }); // keep packet/plan for next stone in same plan
+      setForm({ ...EMPTY, shapeLabel: "Round", packet_no: form.packet_no, plan_no: form.plan_no });
       load();
     } catch (err) {
       toast.error(formatApiError(err.response?.data?.detail));
@@ -81,8 +109,15 @@ export default function StaffEntry() {
           <input required type="number" step="0.01" min="0.01" placeholder="Carat" value={form.pol_cts} onChange={(e) => set("pol_cts", e.target.value)} className="lux-input" data-testid="staff-carat-input" />
           <input placeholder="Remarks (optional)" value={form.remarks} onChange={(e) => set("remarks", e.target.value)} className="lux-input" data-testid="staff-remarks-input" />
 
+          <label className="block">
+            <span className="font-mono text-[10px] uppercase tracking-[0.25em] text-zinc-500">Shape</span>
+            <select value={form.shapeLabel} onChange={(e) => setShapeLabel(e.target.value)} data-testid="staff-shape-select"
+              className="mt-2 w-full border-b border-white/20 bg-transparent py-2 text-sm text-white focus:border-gold focus:outline-none [&>option]:bg-black">
+              {SHAPES.map((s) => <option key={s.label} value={s.label}>{s.label}</option>)}
+            </select>
+          </label>
+
           {[
-            ["shape", "Shape", SHAPES],
             ["color", "Color", COLORS],
             ["clarity", "Clarity", CLARITIES],
             ["cut", "Cut", GRADES],
@@ -127,7 +162,7 @@ export default function StaffEntry() {
               <tr key={s.quote_stone_id} className="border-b border-white/5 text-zinc-300" data-testid={`staff-row-${s.quote_stone_id}`}>
                 <td className="px-5 py-4 font-mono text-xs">{s.packet_no}</td>
                 <td className="px-5 py-4 font-mono text-xs">{s.plan_no}</td>
-                <td className="px-5 py-4">{s.shape}</td>
+                <td className="px-5 py-4">{SHAPE_LABEL[s.shape] || s.shape}</td>
                 <td className="px-5 py-4 font-mono text-xs">{s.pol_cts?.toFixed(2)}</td>
                 <td className="px-5 py-4 font-mono text-xs">{s.color} • {s.clarity}</td>
                 <td className="px-5 py-4">
