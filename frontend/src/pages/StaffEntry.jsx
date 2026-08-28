@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { api, formatApiError } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
@@ -37,7 +38,13 @@ const COLORS = ["D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N"];
 const CLARITIES = ["IF", "VVS1", "VVS2", "VS1", "VS2", "SI1", "SI2", "SI3", "I1", "I2", "I3"];
 
 export default function StaffEntry() {
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
+  const navigate = useNavigate();
+  
+const handleLogout = async () => {
+  await logout();
+  navigate("/portal-access", { replace: true });
+};
   const [form, setForm] = useState({ ...EMPTY, shapeLabel: "Round" });
   const [saving, setSaving] = useState(false);
   const [items, setItems] = useState([]);
@@ -101,6 +108,15 @@ export default function StaffEntry() {
         Add <span className="italic text-gold">stone details.</span>
       </h1>
       <p className="mt-3 text-sm text-zinc-500">Enter the specs — pricing is handled separately.</p>
+      <div className="mt-6 flex justify-end">
+  <button
+    onClick={handleLogout}
+    data-testid="staff-logout-button"
+    className="border border-white/20 px-6 py-2 font-mono text-[11px] uppercase tracking-[0.25em] text-zinc-400 transition-colors hover:border-gold hover:text-gold"
+  >
+    Log out
+  </button>
+</div>
 
       <form onSubmit={submit} className="mt-12 border border-white/10 bg-[#0C1E30] p-8" data-testid="staff-entry-form">
         <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-4">
