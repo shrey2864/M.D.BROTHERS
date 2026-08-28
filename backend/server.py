@@ -1341,7 +1341,32 @@ async def create_quote_stone(body: QuoteStoneBody, user: dict = Depends(require_
     return doc if user_has_pricing_access(user) else staff_view(doc)
 
 
-@api_router.get("/pricing/quote-stones")
+@api_router.get("/pricing/quote-stones/packets")
+async def list_quote_stone_packets(user: dict = Depends(require_pricing_access)):
+    pipeline = [
+        {"$group": {
+            "_id": "$packet_no",
+            "plan_count": {"$addToSet": "$plan_no"},
+            "stone_count": {"$sum": 1},
+            "priced_count": {"$sum": {"$cond": [{"$eq": ["$status", "priced"]}, 1, 0]}},
+            "latest": {"$max": "$created_at"},
+        }},
+        {"$sort": {"latest": -1}},
+    ]
+    rows = await db.quote_stones.aggregate(pipeline).to_list(500)
+    return {
+        "items": [
+            {
+                "packet_no": r["_id"],
+                "plan_count": len(r["plan_count"]),
+                "stone_count": r["stone_count"],
+                "priced_count": r["priced_count"],
+                "pending_count": r["stone_count"] - r["priced_count"],
+            }
+            for r in rows
+        ],
+        "total": len(rows),
+    }
 async def list_quote_stones(
     packet_no: Optional[str] = None,
     status: Optional[str] = None,
