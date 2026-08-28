@@ -1367,6 +1367,7 @@ async def list_quote_stone_packets(user: dict = Depends(require_pricing_access))
         ],
         "total": len(rows),
     }
+@api_router.get("/pricing/quote-stones")
 async def list_quote_stones(
     packet_no: Optional[str] = None,
     status: Optional[str] = None,
