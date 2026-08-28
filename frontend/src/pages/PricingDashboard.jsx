@@ -1,11 +1,10 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { Download } from "lucide-react";
 import { api, formatApiError, API_BASE } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import { Overline } from "@/components/Reveal";
-import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
 
 export default function PricingDashboard() {
 const { user, logout } = useAuth();
