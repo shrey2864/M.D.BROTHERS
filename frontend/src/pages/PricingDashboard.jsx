@@ -4,9 +4,17 @@ import { Download } from "lucide-react";
 import { api, formatApiError, API_BASE } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import { Overline } from "@/components/Reveal";
+import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 
 export default function PricingDashboard() {
-  const { user } = useAuth();
+const { user, logout } = useAuth();
+const navigate = useNavigate();
+
+const handleLogout = async () => {
+  await logout();
+  navigate("/portal-access", { replace: true });
+};
   const [items, setItems] = useState([]);
   const [discounts, setDiscounts] = useState({}); // quote_stone_id -> input value
   const [saving, setSaving] = useState({});
@@ -63,7 +71,14 @@ export default function PricingDashboard() {
           </h1>
           <p className="mt-3 text-sm text-zinc-500">{items.length} stones</p>
         </div>
-        <div className="flex items-center gap-4">
+               <div className="flex items-center gap-4">
+          <button
+            onClick={handleLogout}
+            data-testid="pricing-logout-button"
+            className="border border-white/20 px-6 py-2 font-mono text-[11px] uppercase tracking-[0.25em] text-zinc-400 transition-colors hover:border-gold hover:text-gold"
+          >
+            Log out
+          </button>
           <input
             placeholder="Filter by Packet No"
             value={packetFilter}
@@ -71,6 +86,7 @@ export default function PricingDashboard() {
             className="lux-input"
             data-testid="pricing-packet-filter-input"
           />
+            
           <a
             href={`${API_BASE}/pricing/quote-stones/export${packetFilter ? `?packet_no=${encodeURIComponent(packetFilter)}` : ""}`}
             target="_blank"
