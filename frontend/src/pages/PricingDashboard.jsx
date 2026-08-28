@@ -1,37 +1,61 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
-import { Download } from "lucide-react";
+import { Download, ChevronLeft } from "lucide-react";
 import { api, formatApiError, API_BASE } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import { Overline } from "@/components/Reveal";
 
 export default function PricingDashboard() {
-const { user, logout } = useAuth();
-const navigate = useNavigate();
+  const { user, logout } = useAuth();
+  const navigate = useNavigate();
 
-const handleLogout = async () => {
-  await logout();
-  navigate("/portal-access", { replace: true });
-};
+  const [packets, setPackets] = useState([]);
+  const [loadingPackets, setLoadingPackets] = useState(true);
+  const [selectedPacket, setSelectedPacket] = useState(null); // null = list view
+
   const [items, setItems] = useState([]);
-  const [discounts, setDiscounts] = useState({}); // quote_stone_id -> input value
+  const [discounts, setDiscounts] = useState({});
   const [saving, setSaving] = useState({});
-  const [packetFilter, setPacketFilter] = useState("");
 
-  const load = () =>
+  const handleLogout = async () => {
+    await logout();
+    navigate("/portal-access", { replace: true });
+  };
+
+  const loadPackets = () => {
+    setLoadingPackets(true);
     api
-      .get("/pricing/quote-stones", { params: packetFilter ? { packet_no: packetFilter } : {} })
+      .get("/pricing/quote-stones/packets")
+      .then((r) => setPackets(r.data.items))
+      .catch(() => {})
+      .finally(() => setLoadingPackets(false));
+  };
+
+  const loadPacketItems = (packetNo) =>
+    api
+      .get("/pricing/quote-stones", { params: { packet_no: packetNo } })
       .then((r) => setItems(r.data.items))
       .catch(() => {});
 
   useEffect(() => {
-    if (user && ["pricing_manager", "admin"].includes(user.role)) load();
+    if (user && ["pricing_manager", "admin"].includes(user.role)) loadPackets();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user, packetFilter]);
+  }, [user]);
+
+  useEffect(() => {
+    if (selectedPacket && user && ["pricing_manager", "admin"].includes(user.role)) {
+      loadPacketItems(selectedPacket);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedPacket, user]);
 
   if (user === null)
-    return <div className="px-6 py-40 font-mono text-xs uppercase tracking-[0.3em] text-zinc-600">Loading…</div>;
+    return (
+      <div className="px-6 py-40 font-mono text-xs uppercase tracking-[0.3em] text-zinc-600">
+        Loading…
+      </div>
+    );
 
   if (!user || !["pricing_manager", "admin"].includes(user.role))
     return (
@@ -50,7 +74,7 @@ const handleLogout = async () => {
     try {
       await api.post(`/pricing/quote-stones/${stoneId}/discount`, { discount_percent: val });
       toast.success("Discount saved — pricing updated");
-      load();
+      loadPacketItems(selectedPacket);
     } catch (err) {
       toast.error(formatApiError(err.response?.data?.detail));
     } finally {
@@ -58,36 +82,115 @@ const handleLogout = async () => {
     }
   };
 
-  const fmt = (n) => (n == null ? "—" : `$${Number(n).toLocaleString(undefined, { maximumFractionDigits: 2 })}`);
+  const fmt = (n) =>
+    n == null ? "—" : `$${Number(n).toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
 
+  const backToPackets = () => {
+    setSelectedPacket(null);
+    setItems([]);
+    setDiscounts({});
+    loadPackets(); // refresh counts in case anything changed
+  };
+
+  const LogoutButton = (
+    <button
+      onClick={handleLogout}
+      data-testid="pricing-logout-button"
+      className="border border-white/20 px-6 py-2 font-mono text-[11px] uppercase tracking-[0.25em] text-zinc-400 transition-colors hover:border-gold hover:text-gold"
+    >
+      Log out
+    </button>
+  );
+
+  // ---------------- Packet list view ----------------
+  if (!selectedPacket) {
+    return (
+      <div className="mx-auto max-w-[1440px] px-6 pb-32 pt-24" data-testid="pricing-dashboard-page">
+        <div className="flex flex-wrap items-end justify-between gap-6">
+          <div>
+            <Overline>Pricing</Overline>
+            <h1 className="mt-4 font-serif text-5xl font-light text-white">
+              Quote <span className="italic text-gold">packets.</span>
+            </h1>
+            <p className="mt-3 text-sm text-zinc-500">{packets.length} packets</p>
+          </div>
+          <div className="flex items-center gap-4">{LogoutButton}</div>
+        </div>
+
+        <div className="mt-12 overflow-x-auto border border-white/10" data-testid="packets-table">
+          <table className="w-full text-left text-sm">
+            <thead>
+              <tr className="border-b border-white/10 font-mono text-[10px] uppercase tracking-[0.25em] text-zinc-500">
+                <th className="px-5 py-4">Packet</th>
+                <th className="px-5 py-4">Plans</th>
+                <th className="px-5 py-4">Stones</th>
+                <th className="px-5 py-4">Priced</th>
+                <th className="px-5 py-4">Pending</th>
+                <th className="px-5 py-4"></th>
+              </tr>
+            </thead>
+            <tbody>
+              {packets.map((p) => (
+                <tr
+                  key={p.packet_no}
+                  onClick={() => setSelectedPacket(p.packet_no)}
+                  className="cursor-pointer border-b border-white/5 text-zinc-300 transition-colors hover:bg-white/5"
+                  data-testid={`packet-row-${p.packet_no}`}
+                >
+                  <td className="px-5 py-4 font-mono text-xs text-gold">{p.packet_no}</td>
+                  <td className="px-5 py-4 font-mono text-xs">{p.plan_count}</td>
+                  <td className="px-5 py-4 font-mono text-xs">{p.stone_count}</td>
+                  <td className="px-5 py-4 font-mono text-xs text-emerald-400">{p.priced_count}</td>
+                  <td className="px-5 py-4 font-mono text-xs text-gold">{p.pending_count}</td>
+                  <td className="px-5 py-4 font-mono text-[10px] uppercase tracking-[0.15em] text-zinc-500">
+                    View →
+                  </td>
+                </tr>
+              ))}
+              {!loadingPackets && packets.length === 0 && (
+                <tr>
+                  <td colSpan={6} className="px-5 py-10 text-center font-mono text-xs uppercase tracking-[0.2em] text-zinc-600">
+                    No packets yet
+                  </td>
+                </tr>
+              )}
+              {loadingPackets && (
+                <tr>
+                  <td colSpan={6} className="px-5 py-10 text-center font-mono text-xs uppercase tracking-[0.2em] text-zinc-600">
+                    Loading…
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    );
+  }
+
+  // ---------------- Packet detail view ----------------
   return (
     <div className="mx-auto max-w-[1440px] px-6 pb-32 pt-24" data-testid="pricing-dashboard-page">
-      <div className="flex flex-wrap items-end justify-between gap-6">
+      <button
+        onClick={backToPackets}
+        data-testid="pricing-back-to-packets"
+        className="flex items-center gap-2 font-mono text-[11px] uppercase tracking-[0.25em] text-zinc-500 transition-colors hover:text-gold"
+      >
+        <ChevronLeft className="h-4 w-4" strokeWidth={1.5} /> All packets
+      </button>
+
+      <div className="mt-6 flex flex-wrap items-end justify-between gap-6">
         <div>
           <Overline>Pricing</Overline>
           <h1 className="mt-4 font-serif text-5xl font-light text-white">
-            Quote <span className="italic text-gold">requests.</span>
+            Packet <span className="italic text-gold">{selectedPacket}</span>
           </h1>
           <p className="mt-3 text-sm text-zinc-500">{items.length} stones</p>
         </div>
-               <div className="flex items-center gap-4">
-          <button
-            onClick={handleLogout}
-            data-testid="pricing-logout-button"
-            className="border border-white/20 px-6 py-2 font-mono text-[11px] uppercase tracking-[0.25em] text-zinc-400 transition-colors hover:border-gold hover:text-gold"
-          >
-            Log out
-          </button>
-          <input
-            placeholder="Filter by Packet No"
-            value={packetFilter}
-            onChange={(e) => setPacketFilter(e.target.value)}
-            className="lux-input"
-            data-testid="pricing-packet-filter-input"
-          />
-            
+        <div className="flex items-center gap-4">
+          {LogoutButton}
           <a
-            href={`${API_BASE}/pricing/quote-stones/export${packetFilter ? `?packet_no=${encodeURIComponent(packetFilter)}` : ""}`}
+            href={`${API_BASE}/pricing/quote-stones/export?packet_no=${encodeURIComponent(selectedPacket)}`}
             target="_blank"
             rel="noopener noreferrer"
             data-testid="pricing-export-button"
@@ -102,10 +205,16 @@ const handleLogout = async () => {
         <table className="w-full text-left text-sm">
           <thead>
             <tr className="border-b border-white/10 font-mono text-[10px] uppercase tracking-[0.25em] text-zinc-500">
-              <th className="px-5 py-4">Packet</th><th className="px-5 py-4">Plan</th><th className="px-5 py-4">Shape</th>
-              <th className="px-5 py-4">Carat</th><th className="px-5 py-4">Color/Clarity</th>
-              <th className="px-5 py-4">Rapaport</th><th className="px-5 py-4">Discount %</th>
-              <th className="px-5 py-4">Gross</th><th className="px-5 py-4">Labour</th><th className="px-5 py-4">Net</th>
+              <th className="px-5 py-4">Packet</th>
+              <th className="px-5 py-4">Plan</th>
+              <th className="px-5 py-4">Shape</th>
+              <th className="px-5 py-4">Carat</th>
+              <th className="px-5 py-4">Color/Clarity</th>
+              <th className="px-5 py-4">Rapaport</th>
+              <th className="px-5 py-4">Discount %</th>
+              <th className="px-5 py-4">Gross</th>
+              <th className="px-5 py-4">Labour</th>
+              <th className="px-5 py-4">Net</th>
               <th className="px-5 py-4">Status</th>
             </tr>
           </thead>
@@ -152,7 +261,11 @@ const handleLogout = async () => {
               </tr>
             ))}
             {items.length === 0 && (
-              <tr><td colSpan={11} className="px-5 py-10 text-center font-mono text-xs uppercase tracking-[0.2em] text-zinc-600">No quote requests yet</td></tr>
+              <tr>
+                <td colSpan={11} className="px-5 py-10 text-center font-mono text-xs uppercase tracking-[0.2em] text-zinc-600">
+                  No stones in this packet
+                </td>
+              </tr>
             )}
           </tbody>
         </table>
