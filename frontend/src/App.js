@@ -22,7 +22,7 @@ import PortalAccess from "@/pages/PortalAccess";
 import StaffEntry from "@/pages/StaffEntry";
 import PricingDashboard from "@/pages/PricingDashboard";
 import JewelleryCatalog from './pages/JewelleryCatalog';
-import JewelleryAdmin from './pages/admin/JewelleryAdmin';
+import JewelleryAdmin from './pages/JewelleryAdmin';
 
 const ScrollManager = () => {
   const { pathname } = useLocation();
