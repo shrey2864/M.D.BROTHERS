@@ -1092,6 +1092,135 @@ async def shutdown_db_client():
 #   pip install openpyxl   (add "openpyxl" to requirements.txt)
 # =====================================================================
 
+# ---------------- Colour / clarity band definitions ----------------
+JEWELLERY_COLOR_BANDS = {
+    "DEF": ["D", "E", "F"],
+    "GHI": ["G", "H", "I"],
+}
+JEWELLERY_CLARITY_BANDS = {
+    "VVS-VS": ["VVS1", "VVS2", "VS1", "VS2"],
+    "SI": ["SI1", "SI2"],
+    "I1": ["I1"],
+}
+JEWELLERY_MIN_ITEMS_PER_GROUP = 3  # a colour+clarity group needs at least this many published pieces to show
+
+
+def jewellery_color_band_of(color: str) -> Optional[str]:
+    for band, members in JEWELLERY_COLOR_BANDS.items():
+        if color.upper() in members:
+            return band
+    return None
+
+
+def jewellery_clarity_band_of(clarity: str) -> Optional[str]:
+    for band, members in JEWELLERY_CLARITY_BANDS.items():
+        if clarity.upper() in members:
+            return band
+    return None
+
+
+# ---------------- Models ----------------
+class JewelleryItemBody(BaseModel):
+    name: str
+    images: List[str] = []
+    color: str
+    clarity: str
+    carat: float
+    price: Optional[float] = None
+    description: Optional[str] = ""
+    is_published: bool = True
+
+
+# ---------------- Public routes ----------------
+@api_router.get("/jewellery/bands")
+async def jewellery_bands():
+    items = await db.jewellery.find({"is_published": True}, {"_id": 0}).to_list(2000)
+    counts = {}
+    for item in items:
+        cband = jewellery_color_band_of(item["color"])
+        clband = jewellery_clarity_band_of(item["clarity"])
+        if not cband or not clband:
+            continue
+        key = (cband, clband)
+        counts[key] = counts.get(key, 0) + 1
+    groups = [
+        {"color_band": c, "clarity_band": cl, "count": n}
+        for (c, cl), n in counts.items()
+        if n >= JEWELLERY_MIN_ITEMS_PER_GROUP
+    ]
+    return {"groups": groups}
+
+
+@api_router.get("/jewellery")
+async def list_jewellery(
+    color_band: Optional[str] = None,
+    clarity_band: Optional[str] = None,
+    min_carat: Optional[float] = None,
+    max_carat: Optional[float] = None,
+):
+    query = {"is_published": True}
+    if color_band:
+        members = JEWELLERY_COLOR_BANDS.get(color_band.upper())
+        if not members:
+            raise HTTPException(status_code=400, detail="Invalid color_band")
+        query["color"] = {"$in": members}
+    if clarity_band:
+        members = JEWELLERY_CLARITY_BANDS.get(clarity_band.upper())
+        if not members:
+            raise HTTPException(status_code=400, detail="Invalid clarity_band")
+        query["clarity"] = {"$in": members}
+    if min_carat is not None or max_carat is not None:
+        carat_q = {}
+        if min_carat is not None:
+            carat_q["$gte"] = min_carat
+        if max_carat is not None:
+            carat_q["$lte"] = max_carat
+        query["carat"] = carat_q
+
+    items = await db.jewellery.find(query, {"_id": 0}).sort("created_at", -1).to_list(500)
+    return {"items": items, "total": len(items)}
+
+
+@api_router.get("/jewellery/{item_id}")
+async def get_jewellery_item(item_id: str):
+    item = await db.jewellery.find_one({"item_id": item_id, "is_published": True}, {"_id": 0})
+    if not item:
+        raise HTTPException(status_code=404, detail="Not found")
+    return item
+
+
+# ---------------- Admin routes ----------------
+@api_router.post("/admin/jewellery")
+async def admin_create_jewellery(body: JewelleryItemBody, user: dict = Depends(require_admin)):
+    doc = body.model_dump()
+    doc["item_id"] = str(uuid.uuid4())
+    doc["created_at"] = datetime.now(timezone.utc).isoformat()
+    await db.jewellery.insert_one(doc)
+    doc.pop("_id", None)
+    return doc
+
+
+@api_router.get("/admin/jewellery")
+async def admin_list_jewellery(user: dict = Depends(require_admin)):
+    items = await db.jewellery.find({}, {"_id": 0}).sort("created_at", -1).to_list(2000)
+    return {"items": items, "total": len(items)}
+
+
+@api_router.put("/admin/jewellery/{item_id}")
+async def admin_update_jewellery(item_id: str, body: JewelleryItemBody, user: dict = Depends(require_admin)):
+    result = await db.jewellery.update_one({"item_id": item_id}, {"$set": body.model_dump()})
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Not found")
+    return await db.jewellery.find_one({"item_id": item_id}, {"_id": 0})
+
+
+@api_router.delete("/admin/jewellery/{item_id}")
+async def admin_delete_jewellery(item_id: str, user: dict = Depends(require_admin)):
+    result = await db.jewellery.delete_one({"item_id": item_id})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Not found")
+    return {"status": "deleted"}
+
 from openpyxl import Workbook
 from openpyxl.utils import get_column_letter
 from fastapi.responses import StreamingResponse
