@@ -454,7 +454,6 @@ def build_seed_diamonds() -> List[dict]:
             "created_at": datetime.now(timezone.utc).isoformat(),
         })
 
-    # guarantee demo match-pairs: clone every other stone of the first 8 with near-identical specs
     for k in range(0, 8, 2):
         twin = dict(diamonds[k])
         twin["diamond_id"] = str(uuid.uuid4())
@@ -484,7 +483,6 @@ async def list_diamonds(
     sort: str = "featured",
     limit: int = Query(default=60, le=200),
 ):
-    # Browsing is public. Only approved/admin users get to see price.
     user = await get_optional_user(request)
     can_see_price = bool(user) and (user.get("role") == "admin" or user.get("status") == "approved")
 
@@ -1066,6 +1064,7 @@ async def startup():
     await db.quote_stones.create_index("quote_stone_id", unique=True)
     await db.quote_stones.create_index([("packet_no", 1), ("plan_no", 1)])
     await db.rapaport_rates.create_index([("shape", 1), ("color", 1), ("clarity", 1)])
+    await db.jewellery.create_index("item_id", unique=True)
     await seed_admin()
     await seed_demo_buyer()
     if await db.diamonds.count_documents({}) == 0:
@@ -1078,168 +1077,21 @@ async def shutdown_db_client():
 
 # =====================================================================
 # PRICING CALCULATOR ADDITION
-# Paste this whole block into server.py, BEFORE the line:
-#     app.include_router(api_router)
-# It reuses api_router, db, get_current_user, require_admin, hash_password,
-# verify_password, public_user, DIAMOND_IMAGES etc. that already exist above.
-#
-# Extra imports needed at the top of server.py (add next to your other imports):
-#   import openpyxl
-#   from openpyxl.utils import get_column_letter
-#   from fastapi.responses import StreamingResponse
-#
-# Extra dependency to install:
-#   pip install openpyxl   (add "openpyxl" to requirements.txt)
 # =====================================================================
-
-# ---------------- Colour / clarity band definitions ----------------
-JEWELLERY_COLOR_BANDS = {
-    "DEF": ["D", "E", "F"],
-    "GHI": ["G", "H", "I"],
-}
-JEWELLERY_CLARITY_BANDS = {
-    "VVS-VS": ["VVS1", "VVS2", "VS1", "VS2"],
-    "SI": ["SI1", "SI2"],
-    "I1": ["I1"],
-}
-JEWELLERY_MIN_ITEMS_PER_GROUP = 3  # a colour+clarity group needs at least this many published pieces to show
-
-
-def jewellery_color_band_of(color: str) -> Optional[str]:
-    for band, members in JEWELLERY_COLOR_BANDS.items():
-        if color.upper() in members:
-            return band
-    return None
-
-
-def jewellery_clarity_band_of(clarity: str) -> Optional[str]:
-    for band, members in JEWELLERY_CLARITY_BANDS.items():
-        if clarity.upper() in members:
-            return band
-    return None
-
-
-# ---------------- Models ----------------
-class JewelleryItemBody(BaseModel):
-    name: str
-    images: List[str] = []
-    color: str
-    clarity: str
-    carat: float
-    price: Optional[float] = None
-    description: Optional[str] = ""
-    is_published: bool = True
-
-
-# ---------------- Public routes ----------------
-@api_router.get("/jewellery/bands")
-async def jewellery_bands():
-    items = await db.jewellery.find({"is_published": True}, {"_id": 0}).to_list(2000)
-    counts = {}
-    for item in items:
-        cband = jewellery_color_band_of(item["color"])
-        clband = jewellery_clarity_band_of(item["clarity"])
-        if not cband or not clband:
-            continue
-        key = (cband, clband)
-        counts[key] = counts.get(key, 0) + 1
-    groups = [
-        {"color_band": c, "clarity_band": cl, "count": n}
-        for (c, cl), n in counts.items()
-        if n >= JEWELLERY_MIN_ITEMS_PER_GROUP
-    ]
-    return {"groups": groups}
-
-
-@api_router.get("/jewellery")
-async def list_jewellery(
-    color_band: Optional[str] = None,
-    clarity_band: Optional[str] = None,
-    min_carat: Optional[float] = None,
-    max_carat: Optional[float] = None,
-):
-    query = {"is_published": True}
-    if color_band:
-        members = JEWELLERY_COLOR_BANDS.get(color_band.upper())
-        if not members:
-            raise HTTPException(status_code=400, detail="Invalid color_band")
-        query["color"] = {"$in": members}
-    if clarity_band:
-        members = JEWELLERY_CLARITY_BANDS.get(clarity_band.upper())
-        if not members:
-            raise HTTPException(status_code=400, detail="Invalid clarity_band")
-        query["clarity"] = {"$in": members}
-    if min_carat is not None or max_carat is not None:
-        carat_q = {}
-        if min_carat is not None:
-            carat_q["$gte"] = min_carat
-        if max_carat is not None:
-            carat_q["$lte"] = max_carat
-        query["carat"] = carat_q
-
-    items = await db.jewellery.find(query, {"_id": 0}).sort("created_at", -1).to_list(500)
-    return {"items": items, "total": len(items)}
-
-
-@api_router.get("/jewellery/{item_id}")
-async def get_jewellery_item(item_id: str):
-    item = await db.jewellery.find_one({"item_id": item_id, "is_published": True}, {"_id": 0})
-    if not item:
-        raise HTTPException(status_code=404, detail="Not found")
-    return item
-
-
-# ---------------- Admin routes ----------------
-@api_router.post("/admin/jewellery")
-async def admin_create_jewellery(body: JewelleryItemBody, user: dict = Depends(require_admin)):
-    doc = body.model_dump()
-    doc["item_id"] = str(uuid.uuid4())
-    doc["created_at"] = datetime.now(timezone.utc).isoformat()
-    await db.jewellery.insert_one(doc)
-    doc.pop("_id", None)
-    return doc
-
-
-@api_router.get("/admin/jewellery")
-async def admin_list_jewellery(user: dict = Depends(require_admin)):
-    items = await db.jewellery.find({}, {"_id": 0}).sort("created_at", -1).to_list(2000)
-    return {"items": items, "total": len(items)}
-
-
-@api_router.put("/admin/jewellery/{item_id}")
-async def admin_update_jewellery(item_id: str, body: JewelleryItemBody, user: dict = Depends(require_admin)):
-    result = await db.jewellery.update_one({"item_id": item_id}, {"$set": body.model_dump()})
-    if result.matched_count == 0:
-        raise HTTPException(status_code=404, detail="Not found")
-    return await db.jewellery.find_one({"item_id": item_id}, {"_id": 0})
-
-
-@api_router.delete("/admin/jewellery/{item_id}")
-async def admin_delete_jewellery(item_id: str, user: dict = Depends(require_admin)):
-    result = await db.jewellery.delete_one({"item_id": item_id})
-    if result.deleted_count == 0:
-        raise HTTPException(status_code=404, detail="Not found")
-    return {"status": "deleted"}
 
 from openpyxl import Workbook
 from openpyxl.utils import get_column_letter
 from fastapi.responses import StreamingResponse
 
 # ---------------- Roles & permissions ----------------
-# Existing roles: "admin", "buyer". New roles added by this module:
-#   "staff"            -> enters stone details, NEVER sees pricing fields
-#   "pricing_manager"  -> sets discount, sees Rapaport/Gross/Labour/Net, exports Excel
-#                          (admin can grant/revoke individual permissions per login)
-
 PRICING_MANAGER_DEFAULT_PERMISSIONS = {
     "set_discount": True,
-    "view_pricing": True,   # Rapaport rate, Gross Value, Labour, Net Value
+    "view_pricing": True,
     "export_excel": True,
 }
 
 
 def user_has_pricing_access(user: dict) -> bool:
-    """True for admin, or a pricing_manager whose permissions allow viewing pricing."""
     if user.get("role") == "admin":
         return True
     if user.get("role") == "pricing_manager":
@@ -1275,13 +1127,12 @@ async def require_staff_or_pricing(user: dict = Depends(get_current_user)) -> di
     return user
 
 
-# ---------------- Admin: create/manage staff & pricing-manager logins ----------------
 class StaffUserBody(BaseModel):
     name: str
     email: EmailStr
     password: str
-    role: str  # "staff" or "pricing_manager"
-    permissions: Optional[dict] = None  # only used when role == "pricing_manager"
+    role: str
+    permissions: Optional[dict] = None
 
 
 @api_router.post("/admin/staff-users")
@@ -1337,10 +1188,6 @@ async def admin_delete_staff_user(user_id: str, user: dict = Depends(require_adm
         raise HTTPException(status_code=404, detail="Staff user not found")
     return {"status": "deleted"}
 
-
-# ---------------- Rapaport rate list (per shape CSV upload + lookup) ----------------
-# CSV row format (as supplied): Shape, Clarity, Color, CaratMin, CaratMax, Rate, Date
-# One file per shape; a new upload REPLACES all existing rows for that shape.
 
 @api_router.post("/admin/rapaport-rates/upload")
 async def upload_rapaport_rates(file: UploadFile = File(...), user: dict = Depends(require_admin)):
@@ -1399,9 +1246,6 @@ async def lookup_rapaport_rate(shape: str, carat: float, color: str, clarity: st
     return row["rate"] if row else None
 
 
-# ---------------- Labour lookup (stub until labour chart is uploaded) ----------------
-# TODO: replace with a real db.labour_rates lookup once the labour Excel is supplied,
-# same shape as rapaport rates (by shape + carat bracket, per what was discussed).
 async def lookup_labour(shape: str, carat: float) -> float:
     row = await db.labour_rates.find_one({
         "shape": shape.upper(),
@@ -1411,11 +1255,10 @@ async def lookup_labour(shape: str, carat: float) -> float:
     return row["labour"] if row else 0.0
 
 
-# ---------------- Quote stones (staff input, packet/plan structure) ----------------
 class QuoteStoneBody(BaseModel):
     packet_no: str
     plan_no: str
-    shape: str          # e.g. "EM", "OV", "RD", "PS", "HR"
+    shape: str
     pol_cts: float
     color: str
     clarity: str
@@ -1432,13 +1275,11 @@ class QuoteStoneBody(BaseModel):
 
 
 def staff_view(stone: dict) -> dict:
-    """Strip every pricing field before returning to a staff-role user."""
     hidden = {"rapaport_rate", "discount_percent", "gross_value", "labour", "net_value", "priced_by", "priced_at"}
     return {k: v for k, v in stone.items() if k not in hidden}
 
 
 def with_computed_pricing(stone: dict) -> dict:
-    """Fill in gross_value / net_value live from the stored discount_percent."""
     out = dict(stone)
     rate = out.get("rapaport_rate")
     disc = out.get("discount_percent")
@@ -1458,7 +1299,7 @@ def with_computed_pricing(stone: dict) -> dict:
 async def create_quote_stone(body: QuoteStoneBody, user: dict = Depends(require_staff_or_pricing)):
     doc = body.model_dump()
     doc["quote_stone_id"] = str(uuid.uuid4())
-    doc["status"] = "pending"  # becomes "priced" once discount is set
+    doc["status"] = "pending"
     doc["rapaport_rate"] = await lookup_rapaport_rate(body.shape, body.pol_cts, body.color, body.clarity)
     doc["labour"] = await lookup_labour(body.shape, body.pol_cts)
     doc["discount_percent"] = None
@@ -1466,7 +1307,6 @@ async def create_quote_stone(body: QuoteStoneBody, user: dict = Depends(require_
     doc["created_at"] = datetime.now(timezone.utc).isoformat()
     await db.quote_stones.insert_one(doc)
     doc.pop("_id", None)
-    # Staff gets back only the non-pricing fields, even for what they just created
     return doc if user_has_pricing_access(user) else staff_view(doc)
 
 
@@ -1537,7 +1377,6 @@ async def set_quote_stone_discount(quote_stone_id: str, body: SetDiscountBody, u
     return with_computed_pricing(stone)
 
 
-# ---------------- Excel export (GT-7 style layout) ----------------
 GT7_COLUMNS = [
     ("packet_no", "PacketNo"), ("plan_no", "PlanNo"), ("shape", "Shape"),
     ("pol_cts", "PolCts"), ("color", "RefColor"), ("clarity", "RefPurity"),
@@ -1578,6 +1417,138 @@ async def export_quote_stones_excel(packet_no: Optional[str] = None, user: dict 
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
+
+
+# =====================================================================
+# JEWELLERY SECTION
+# =====================================================================
+
+JEWELLERY_COLOR_BANDS = {
+    "DEF": ["D", "E", "F"],
+    "GHI": ["G", "H", "I"],
+}
+JEWELLERY_CLARITY_BANDS = {
+    "VVS-VS": ["VVS1", "VVS2", "VS1", "VS2"],
+    "SI": ["SI1", "SI2"],
+    "I1": ["I1"],
+}
+JEWELLERY_MIN_ITEMS_PER_GROUP = 3
+
+
+def jewellery_color_band_of(color: str) -> Optional[str]:
+    for band, members in JEWELLERY_COLOR_BANDS.items():
+        if color.upper() in members:
+            return band
+    return None
+
+
+def jewellery_clarity_band_of(clarity: str) -> Optional[str]:
+    for band, members in JEWELLERY_CLARITY_BANDS.items():
+        if clarity.upper() in members:
+            return band
+    return None
+
+
+class JewelleryItemBody(BaseModel):
+    name: str
+    images: List[str] = []
+    color: str
+    clarity: str
+    carat: float
+    price: Optional[float] = None
+    description: Optional[str] = ""
+    is_published: bool = True
+
+
+@api_router.get("/jewellery/bands")
+async def jewellery_bands():
+    items = await db.jewellery.find({"is_published": True}, {"_id": 0}).to_list(2000)
+    counts = {}
+    for item in items:
+        cband = jewellery_color_band_of(item["color"])
+        clband = jewellery_clarity_band_of(item["clarity"])
+        if not cband or not clband:
+            continue
+        key = (cband, clband)
+        counts[key] = counts.get(key, 0) + 1
+    groups = [
+        {"color_band": c, "clarity_band": cl, "count": n}
+        for (c, cl), n in counts.items()
+        if n >= JEWELLERY_MIN_ITEMS_PER_GROUP
+    ]
+    return {"groups": groups}
+
+
+@api_router.get("/jewellery")
+async def list_jewellery(
+    color_band: Optional[str] = None,
+    clarity_band: Optional[str] = None,
+    min_carat: Optional[float] = None,
+    max_carat: Optional[float] = None,
+):
+    query = {"is_published": True}
+    if color_band:
+        members = JEWELLERY_COLOR_BANDS.get(color_band.upper())
+        if not members:
+            raise HTTPException(status_code=400, detail="Invalid color_band")
+        query["color"] = {"$in": members}
+    if clarity_band:
+        members = JEWELLERY_CLARITY_BANDS.get(clarity_band.upper())
+        if not members:
+            raise HTTPException(status_code=400, detail="Invalid clarity_band")
+        query["clarity"] = {"$in": members}
+    if min_carat is not None or max_carat is not None:
+        carat_q = {}
+        if min_carat is not None:
+            carat_q["$gte"] = min_carat
+        if max_carat is not None:
+            carat_q["$lte"] = max_carat
+        query["carat"] = carat_q
+
+    items = await db.jewellery.find(query, {"_id": 0}).sort("created_at", -1).to_list(500)
+    return {"items": items, "total": len(items)}
+
+
+@api_router.get("/jewellery/{item_id}")
+async def get_jewellery_item(item_id: str):
+    item = await db.jewellery.find_one({"item_id": item_id, "is_published": True}, {"_id": 0})
+    if not item:
+        raise HTTPException(status_code=404, detail="Not found")
+    return item
+
+
+@api_router.post("/admin/jewellery")
+async def admin_create_jewellery(body: JewelleryItemBody, user: dict = Depends(require_admin)):
+    doc = body.model_dump()
+    doc["item_id"] = str(uuid.uuid4())
+    doc["created_at"] = datetime.now(timezone.utc).isoformat()
+    await db.jewellery.insert_one(doc)
+    doc.pop("_id", None)
+    return doc
+
+
+@api_router.get("/admin/jewellery")
+async def admin_list_jewellery(user: dict = Depends(require_admin)):
+    items = await db.jewellery.find({}, {"_id": 0}).sort("created_at", -1).to_list(2000)
+    return {"items": items, "total": len(items)}
+
+
+@api_router.put("/admin/jewellery/{item_id}")
+async def admin_update_jewellery(item_id: str, body: JewelleryItemBody, user: dict = Depends(require_admin)):
+    result = await db.jewellery.update_one({"item_id": item_id}, {"$set": body.model_dump()})
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Not found")
+    return await db.jewellery.find_one({"item_id": item_id}, {"_id": 0})
+
+
+@api_router.delete("/admin/jewellery/{item_id}")
+async def admin_delete_jewellery(item_id: str, user: dict = Depends(require_admin)):
+    result = await db.jewellery.delete_one({"item_id": item_id})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Not found")
+    return {"status": "deleted"}
+
+
 app.include_router(api_router)
 
 _cors_env = os.environ.get("CORS_ORIGINS", "")
