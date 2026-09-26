@@ -21,6 +21,8 @@ import MatchPair from "@/pages/MatchPair";
 import PortalAccess from "@/pages/PortalAccess";
 import StaffEntry from "@/pages/StaffEntry";
 import PricingDashboard from "@/pages/PricingDashboard";
+import JewelleryCatalog from './pages/JewelleryCatalog';
+import JewelleryAdmin from './pages/admin/JewelleryAdmin';
 
 const ScrollManager = () => {
   const { pathname } = useLocation();
@@ -79,6 +81,8 @@ function App() {
               <Route path="/portal-access" element={<PortalAccess />} />
               <Route path="/portal-access/entry" element={<StaffEntry />} />
               <Route path="/portal-access/pricing" element={<PricingDashboard />} />
+              <Route path="/jewellery" element={<JewelleryCatalog />} />
+              <Route path="/admin/jewellery" element={<JewelleryAdmin />} />
             </Routes>
           </Chrome>
           <Toaster theme="dark" position="bottom-right" />
