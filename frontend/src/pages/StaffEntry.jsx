@@ -34,7 +34,9 @@ const SHAPE_LABEL = { BR: "Round", PS: "Fancy shape" };
 
 const GRADES = ["EX", "VG", "GD"];
 const FLUORESCENCE = ["NON", "FNT", "MED", "STG"];
-const COLORS = ["D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N"];
+const SINGLE_COLORS = ["D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N"];
+const COLOR_RANGES = ["D-E", "E-F", "F-G", "G-H", "H-I", "I-J", "J-K", "K-L", "L-M", "M-N"];
+const COLORS = [...SINGLE_COLORS, ...COLOR_RANGES];
 const CLARITIES = ["IF", "VVS1", "VVS2", "VS1", "VS2", "SI1", "SI2", "SI3", "I1", "I2", "I3"];
 
 export default function StaffEntry() {
