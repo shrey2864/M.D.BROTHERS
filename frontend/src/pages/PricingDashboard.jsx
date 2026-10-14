@@ -225,7 +225,7 @@ export default function PricingDashboard() {
                 <td className="px-5 py-4 font-mono text-xs">{s.plan_no}</td>
                 <td className="px-5 py-4">{s.shape}</td>
                 <td className="px-5 py-4 font-mono text-xs">{s.pol_cts?.toFixed(2)}</td>
-                <td className="px-5 py-4 font-mono text-xs">{s.color} • {s.clarity}</td>
+                <td className="px-5 py-4 font-mono text-xs">{s.color}{s.color_range ? ` (${s.color_range})` : ""} • {s.clarity}</td>
                 <td className="px-5 py-4 font-mono text-xs">{s.rapaport_rate ?? "—"}</td>
                 <td className="px-5 py-4">
                   <div className="flex items-center gap-2">
