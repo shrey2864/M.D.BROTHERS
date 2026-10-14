@@ -123,7 +123,7 @@ const handleLogout = async () => {
       <form onSubmit={submit} className="mt-12 border border-white/10 bg-[#0C1E30] p-8" data-testid="staff-entry-form">
         <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-4">
           <input required placeholder="Packet No" value={form.packet_no} onChange={(e) => set("packet_no", e.target.value)} className="lux-input" data-testid="staff-packet-input" />
-          <input required placeholder="Plan No" value={form.plan_no} onChange={(e) => set("plan_no", e.target.value)} className="lux-input" data-testid="staff-plan-input" />
+          <input required placeholder="Plan No (1, 1A, 2…)" value={form.plan_no} onChange={(e) => set("plan_no", e.target.value)} className="lux-input" data-testid="staff-plan-input" />
           <input required type="number" step="0.01" min="0.01" placeholder="Carat" value={form.pol_cts} onChange={(e) => set("pol_cts", e.target.value)} className="lux-input" data-testid="staff-carat-input" />
           <input placeholder="Remarks (optional)" value={form.remarks} onChange={(e) => set("remarks", e.target.value)} className="lux-input" data-testid="staff-remarks-input" />
 
@@ -182,7 +182,7 @@ const handleLogout = async () => {
                 <td className="px-5 py-4 font-mono text-xs">{s.plan_no}</td>
                 <td className="px-5 py-4">{SHAPE_LABEL[s.shape] || s.shape}</td>
                 <td className="px-5 py-4 font-mono text-xs">{s.pol_cts?.toFixed(2)}</td>
-                <td className="px-5 py-4 font-mono text-xs">{s.color} • {s.clarity}</td>
+                <td className="px-5 py-4 font-mono text-xs">{s.color}{s.color_range ? ` (${s.color_range})` : ""} • {s.clarity}</td>
                 <td className="px-5 py-4">
                   <span className={`font-mono text-[10px] uppercase tracking-[0.15em] ${s.status === "priced" ? "text-emerald-400" : "text-gold"}`}>
                     {s.status}
