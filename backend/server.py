@@ -1254,13 +1254,38 @@ async def lookup_labour(shape: str, carat: float) -> float:
     }, {"_id": 0, "labour": 1})
     return row["labour"] if row else 0.0
 
+from itertools import groupby
+from openpyxl.styles import Font, PatternFill
+
+# ---------------- Helpers: colour ranges & plan groups ----------------
+RANGE_RE = re.compile(r"^\s*([A-Za-z])\s*-\s*([A-Za-z])\s*$")
+
+
+def split_colour(color: str) -> List[str]:
+    """'D-E' -> ['D', 'E'];  'F' -> ['F']"""
+    m = RANGE_RE.match(color or "")
+    if m:
+        return [m.group(1).upper(), m.group(2).upper()]
+    return [(color or "").strip().upper()]
+
+
+def plan_group_of(plan_no: str) -> str:
+    """'Plan 1', '1', '1A', 'Plan 1A' -> '1'   |   'Plan 2' -> '2'"""
+    m = re.search(r"\d+", plan_no or "")
+    return str(int(m.group())) if m else (plan_no or "").strip().upper()
+
+
+def plan_group_sort_key(stone: dict):
+    g = plan_group_of(stone.get("plan_no", ""))
+    return (0, int(g), "") if g.isdigit() else (1, 0, g)
+
 
 class QuoteStoneBody(BaseModel):
     packet_no: str
     plan_no: str
     shape: str
     pol_cts: float
-    color: str
+    color: str            # single colour ("F") or range ("F-G")
     clarity: str
     cut: Optional[str] = None
     polish: Optional[str] = None
@@ -1297,17 +1322,35 @@ def with_computed_pricing(stone: dict) -> dict:
 
 @api_router.post("/pricing/quote-stones")
 async def create_quote_stone(body: QuoteStoneBody, user: dict = Depends(require_staff_or_pricing)):
-    doc = body.model_dump()
-    doc["quote_stone_id"] = str(uuid.uuid4())
-    doc["status"] = "pending"
-    doc["rapaport_rate"] = await lookup_rapaport_rate(body.shape, body.pol_cts, body.color, body.clarity)
-    doc["labour"] = await lookup_labour(body.shape, body.pol_cts)
-    doc["discount_percent"] = None
-    doc["created_by"] = user["user_id"]
-    doc["created_at"] = datetime.now(timezone.utc).isoformat()
-    await db.quote_stones.insert_one(doc)
-    doc.pop("_id", None)
-    return doc if user_has_pricing_access(user) else staff_view(doc)
+    # A range like "F-G" becomes TWO rows (F and G), each with its own
+    # Rapaport rate and its own discount. A single colour becomes one row.
+    colours = split_colour(body.color)
+    range_label = "-".join(colours) if len(colours) > 1 else None
+    range_id = str(uuid.uuid4()) if range_label else None
+    labour = await lookup_labour(body.shape, body.pol_cts)
+    now = datetime.now(timezone.utc).isoformat()
+
+    created = []
+    for idx, col in enumerate(colours):
+        doc = body.model_dump()
+        doc.update({
+            "color": col,
+            "color_range": range_label,
+            "range_id": range_id,
+            "range_index": idx,
+            "plan_group": plan_group_of(body.plan_no),
+            "quote_stone_id": str(uuid.uuid4()),
+            "status": "pending",
+            "rapaport_rate": await lookup_rapaport_rate(body.shape, body.pol_cts, col, body.clarity),
+            "labour": labour,
+            "discount_percent": None,
+            "created_by": user["user_id"],
+            "created_at": now,
+        })
+        await db.quote_stones.insert_one(doc)
+        doc.pop("_id", None)
+        created.append(doc if user_has_pricing_access(user) else staff_view(doc))
+    return {"items": created}
 
 
 @api_router.get("/pricing/quote-stones/packets")
@@ -1327,7 +1370,8 @@ async def list_quote_stone_packets(user: dict = Depends(require_pricing_access))
         "items": [
             {
                 "packet_no": r["_id"],
-                "plan_count": len(r["plan_count"]),
+                # Plan 1 and Plan 1A count as ONE plan group
+                "plan_count": len({plan_group_of(p) for p in r["plan_count"]}),
                 "stone_count": r["stone_count"],
                 "priced_count": r["priced_count"],
                 "pending_count": r["stone_count"] - r["priced_count"],
@@ -1336,6 +1380,8 @@ async def list_quote_stone_packets(user: dict = Depends(require_pricing_access))
         ],
         "total": len(rows),
     }
+
+
 @api_router.get("/pricing/quote-stones")
 async def list_quote_stones(
     packet_no: Optional[str] = None,
@@ -1349,6 +1395,13 @@ async def list_quote_stones(
         query["status"] = status
     items = await db.quote_stones.find(query, {"_id": 0}).sort("created_at", -1).to_list(500)
     if user_has_pricing_access(user):
+        # pricing view: grouped by plan group (1, 1A together, then 2, ...)
+        items.sort(key=lambda s: (
+            plan_group_sort_key(s),
+            str(s.get("plan_no", "")).upper(),
+            s.get("created_at", ""),
+            s.get("range_index") or 0,
+        ))
         items = [with_computed_pricing(i) for i in items]
         return {"items": items, "total": len(items)}
     return {"items": [staff_view(i) for i in items], "total": len(items)}
@@ -1379,7 +1432,8 @@ async def set_quote_stone_discount(quote_stone_id: str, body: SetDiscountBody, u
 
 GT7_COLUMNS = [
     ("packet_no", "PacketNo"), ("plan_no", "PlanNo"), ("shape", "Shape"),
-    ("pol_cts", "PolCts"), ("color", "RefColor"), ("clarity", "RefPurity"),
+    ("pol_cts", "PolCts"), ("color", "RefColor"), ("color_range", "ColourRange"),
+    ("clarity", "RefPurity"),
     ("cut", "SarinCut"), ("symmetry", "Symm"), ("fluorescence", "Fls"),
     ("black_no_black", "BlackNoBlack"), ("rapaport_rate", "Rapaport"),
     ("discount_percent", "RefDisc%"), ("gross_value", "GrossValue"),
@@ -1394,19 +1448,57 @@ async def export_quote_stones_excel(packet_no: Optional[str] = None, user: dict 
     if not user_can_export_excel(user):
         raise HTTPException(status_code=403, detail="Not permitted to export")
     query = {"packet_no": packet_no} if packet_no else {}
-    items = await db.quote_stones.find(query, {"_id": 0}).sort("created_at", -1).to_list(2000)
+    items = await db.quote_stones.find(query, {"_id": 0}).to_list(5000)
     items = [with_computed_pricing(i) for i in items]
+    items.sort(key=lambda s: (
+        str(s.get("packet_no", "")),
+        plan_group_sort_key(s),
+        str(s.get("plan_no", "")).upper(),
+        s.get("created_at", ""),
+        s.get("range_index") or 0,
+    ))
 
     wb = Workbook()
     ws = wb.active
     ws.title = "Quote"
-    for col_idx, (_, header) in enumerate(GT7_COLUMNS, start=1):
-        ws.cell(row=1, column=col_idx, value=header)
-    for row_idx, stone in enumerate(items, start=2):
-        for col_idx, (key, _) in enumerate(GT7_COLUMNS, start=1):
-            ws.cell(row=row_idx, column=col_idx, value=stone.get(key))
+    ws.append([header for _, header in GT7_COLUMNS])
+    for cell in ws[1]:
+        cell.font = Font(bold=True)
+
+    bold = Font(bold=True)
+    total_fill = PatternFill("solid", fgColor="FFF2CC")
+
+    def group_key(s):
+        return (str(s.get("packet_no", "")), plan_group_of(s.get("plan_no", "")))
+
+    # One block per (packet, plan group): all its stone rows, then a TOTAL row.
+    for (pkt, _grp), block in groupby(items, key=group_key):
+        block = list(block)
+        for stone in block:
+            ws.append([stone.get(key) for key, _ in GT7_COLUMNS])
+
+        # A colour-range stone has two rows (e.g. D and E) but is ONE stone,
+        # so in the total only its first colour row is counted. This stops
+        # carats and values from being added twice.
+        counted = [s for s in block if (s.get("range_index") or 0) == 0]
+        plans = sorted({str(s.get("plan_no", "")) for s in block}, key=lambda p: p.upper())
+
+        total = {key: None for key, _ in GT7_COLUMNS}
+        total["packet_no"] = pkt
+        total["plan_no"] = f"TOTAL ({', '.join(plans)})"
+        total["pol_cts"] = round(sum(s.get("pol_cts") or 0 for s in counted), 3)
+        total["gross_value"] = round(sum(s.get("gross_value") or 0 for s in counted), 2)
+        total["labour"] = round(sum(s.get("labour") or 0 for s in counted), 2)
+        total["net_value"] = round(sum(s.get("net_value") or 0 for s in counted), 2)
+        ws.append([total[key] for key, _ in GT7_COLUMNS])
+        for cell in ws[ws.max_row]:
+            cell.font = bold
+            cell.fill = total_fill
+        ws.append([])  # blank spacer row between groups
+
     for col_idx in range(1, len(GT7_COLUMNS) + 1):
         ws.column_dimensions[get_column_letter(col_idx)].width = 14
+    ws.column_dimensions["B"].width = 24  # PlanNo column holds the TOTAL label
 
     buf = io.BytesIO()
     wb.save(buf)
