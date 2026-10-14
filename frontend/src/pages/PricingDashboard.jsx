@@ -237,6 +237,9 @@ export default function PricingDashboard() {
                       placeholder={s.discount_percent ?? "e.g. 45"}
                       value={discounts[s.quote_stone_id] ?? ""}
                       onChange={(e) => setDiscounts((d) => ({ ...d, [s.quote_stone_id]: e.target.value }))}
+                      onKeyDown={(e) => {
+                      if (e.key === "Enter" && !saving[s.quote_stone_id]) setDiscount(s.quote_stone_id);
+                      }}
                       className="w-20 border-b border-white/20 bg-transparent py-1 font-mono text-xs text-white focus:border-gold focus:outline-none"
                       data-testid={`pricing-discount-input-${s.quote_stone_id}`}
                     />
