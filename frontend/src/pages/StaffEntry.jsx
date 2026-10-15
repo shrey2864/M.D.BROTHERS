@@ -8,7 +8,7 @@ import { Overline } from "@/components/Reveal";
 const EMPTY = {
   packet_no: "", plan_no: "", shape: "BR", pol_cts: "", color: "D", clarity: "VS1",
   cut: "EX", polish: "EX", symmetry: "EX", fluorescence: "NON",
-  black_no_black: "No black", table_pct: "", girdle_pct: "", td: "", ratio: "", remarks: "",
+  black_no_black: "No black", lab: "GIA", table_pct: "", girdle_pct: "", td: "", ratio: "", remarks: "",
 };
 
 // Full names shown to staff; the "code" is what's actually sent to the backend.
@@ -34,6 +34,7 @@ const SHAPE_LABEL = { BR: "Round", PS: "Fancy shape" };
 
 const GRADES = ["EX", "VG", "GD"];
 const FLUORESCENCE = ["NON", "FNT", "MED", "STG"];
+const LABS = ["GIA", "IGI", "HRD"];
 const SINGLE_COLORS = ["D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N"];
 const COLOR_RANGES = ["D-E", "E-F", "F-G", "G-H", "H-I", "I-J", "J-K", "K-L", "L-M", "M-N"];
 const COLORS = [...SINGLE_COLORS, ...COLOR_RANGES];
@@ -143,6 +144,7 @@ const handleLogout = async () => {
             ["symmetry", "Symmetry", GRADES],
             ["fluorescence", "Fluorescence", FLUORESCENCE],
             ["black_no_black", "Black / No-Black", ["No black", "Black"]],
+            ["lab", "Lab", LABS],
           ].map(([key, label, opts]) => (
             <label key={key} className="block">
               <span className="font-mono text-[10px] uppercase tracking-[0.25em] text-zinc-500">{label}</span>
