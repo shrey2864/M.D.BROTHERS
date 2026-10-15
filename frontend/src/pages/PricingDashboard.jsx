@@ -81,6 +81,7 @@ export default function PricingDashboard() {
       setSaving((s) => ({ ...s, [stoneId]: false }));
     }
   };
+
   const deleteStone = async (s) => {
     const label = s.color_range ? `${s.color_range} (both colour rows)` : s.color;
     if (!window.confirm(`Delete this stone (Plan ${s.plan_no}, ${label}, ${s.pol_cts?.toFixed(2)} ct)?`)) return;
@@ -115,6 +116,7 @@ export default function PricingDashboard() {
       toast.error(formatApiError(err.response?.data?.detail));
     }
   };
+
   const fmt = (n) =>
     n == null ? "—" : `$${Number(n).toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
 
@@ -179,9 +181,12 @@ export default function PricingDashboard() {
                   <td className="px-5 py-4 font-mono text-[10px] uppercase tracking-[0.15em] text-zinc-500">
                     View →
                   </td>
-                    <td className="px-5 py-4">
+                  <td className="px-5 py-4">
                     <button
-                      onClick={(e) => { e.stopPropagation(); deletePacket(p.packet_no); }}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        deletePacket(p.packet_no);
+                      }}
                       data-testid={`packet-delete-${p.packet_no}`}
                       className="font-mono text-[10px] uppercase tracking-[0.15em] text-red-400 hover:underline"
                     >
@@ -199,7 +204,7 @@ export default function PricingDashboard() {
               )}
               {loadingPackets && (
                 <tr>
-                  <td colSpan={6} className="px-5 py-10 text-center font-mono text-xs uppercase tracking-[0.2em] text-zinc-600">
+                  <td colSpan={7} className="px-5 py-10 text-center font-mono text-xs uppercase tracking-[0.2em] text-zinc-600">
                     Loading…
                   </td>
                 </tr>
@@ -243,6 +248,7 @@ export default function PricingDashboard() {
           </a>
         </div>
       </div>
+
       {items.length > 0 && (
         <div className="mt-8 flex flex-wrap items-center gap-3" data-testid="plan-chips">
           <span className="font-mono text-[10px] uppercase tracking-[0.25em] text-zinc-500">Plans</span>
@@ -261,6 +267,7 @@ export default function PricingDashboard() {
           ))}
         </div>
       )}
+
       <div className="mt-12 overflow-x-auto border border-white/10" data-testid="pricing-table">
         <table className="w-full text-left text-sm">
           <thead>
@@ -301,7 +308,7 @@ export default function PricingDashboard() {
                       value={discounts[s.quote_stone_id] ?? ""}
                       onChange={(e) => setDiscounts((d) => ({ ...d, [s.quote_stone_id]: e.target.value }))}
                       onKeyDown={(e) => {
-                      if (e.key === "Enter" && !saving[s.quote_stone_id]) setDiscount(s.quote_stone_id);
+                        if (e.key === "Enter" && !saving[s.quote_stone_id]) setDiscount(s.quote_stone_id);
                       }}
                       className="w-20 border-b border-white/20 bg-transparent py-1 font-mono text-xs text-white focus:border-gold focus:outline-none"
                       data-testid={`pricing-discount-input-${s.quote_stone_id}`}
@@ -326,7 +333,7 @@ export default function PricingDashboard() {
                     {s.status}
                   </span>
                 </td>
-                  <td className="px-5 py-4">
+                <td className="px-5 py-4">
                   <button
                     onClick={() => deleteStone(s)}
                     data-testid={`pricing-delete-${s.quote_stone_id}`}
