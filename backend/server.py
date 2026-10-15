@@ -121,6 +121,7 @@ class _EmailScan(HTMLParser):
         if tag.lower() == "a" and self._href is not None:
             self.anchors.append((self._href, "".join(self._text)))
             self._href, self._text = None, []
+        
 
 
 def _assert_safe_email(subject: str, html: str) -> None:
@@ -1404,6 +1405,7 @@ async def list_quote_stones(
             s.get("range_index") or 0,
         ))
         items = [with_computed_pricing(i) for i in items]
+        await attach_user_names(items)
         return {"items": items, "total": len(items)}
     return {"items": [staff_view(i) for i in items], "total": len(items)}
 
@@ -1488,6 +1490,7 @@ GT7_COLUMNS = [
     ("labour", "Labour"), ("net_value", "NetValue"),
     ("table_pct", "Table%"), ("girdle_pct", "Girdle%"), ("td", "TD"),
     ("ratio", "Ratio"), ("remarks", "Remarks"),
+    ("entered_by", "EnteredBy"), ("priced_by_name", "PricedBy"),
 ]
 
 
