@@ -37,7 +37,7 @@ const ScrollManager = () => {
 // Portal routes get no public Header/Footer — just the tool itself.
 const Chrome = ({ children }) => {
   const { pathname } = useLocation();
-  const isPortal = pathname.startsWith("/portal-access");
+  const isPortal = ["/portal-access", "/portal-signup", "/portal-admin"].some((p) => pathname.startsWith(p));
   return (
     <>
       {!isPortal && <Header />}
