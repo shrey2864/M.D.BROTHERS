@@ -160,6 +160,7 @@ export default function PricingDashboard() {
                 <th className="px-5 py-4">Priced</th>
                 <th className="px-5 py-4">Pending</th>
                 <th className="px-5 py-4"></th>
+                <th className="px-5 py-4"></th>
               </tr>
             </thead>
             <tbody>
@@ -178,11 +179,20 @@ export default function PricingDashboard() {
                   <td className="px-5 py-4 font-mono text-[10px] uppercase tracking-[0.15em] text-zinc-500">
                     View →
                   </td>
+                    <td className="px-5 py-4">
+                    <button
+                      onClick={(e) => { e.stopPropagation(); deletePacket(p.packet_no); }}
+                      data-testid={`packet-delete-${p.packet_no}`}
+                      className="font-mono text-[10px] uppercase tracking-[0.15em] text-red-400 hover:underline"
+                    >
+                      Delete
+                    </button>
+                  </td>
                 </tr>
               ))}
               {!loadingPackets && packets.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="px-5 py-10 text-center font-mono text-xs uppercase tracking-[0.2em] text-zinc-600">
+                  <td colSpan={7} className="px-5 py-10 text-center font-mono text-xs uppercase tracking-[0.2em] text-zinc-600">
                     No packets yet
                   </td>
                 </tr>
@@ -233,7 +243,24 @@ export default function PricingDashboard() {
           </a>
         </div>
       </div>
-
+      {items.length > 0 && (
+        <div className="mt-8 flex flex-wrap items-center gap-3" data-testid="plan-chips">
+          <span className="font-mono text-[10px] uppercase tracking-[0.25em] text-zinc-500">Plans</span>
+          {[...new Set(items.map((s) => s.plan_no))].map((planNo) => (
+            <span key={planNo} className="flex items-center gap-2 border border-white/10 px-3 py-1 font-mono text-xs text-zinc-300">
+              Plan {planNo}
+              <button
+                onClick={() => deletePlan(planNo)}
+                title={`Delete Plan ${planNo}`}
+                data-testid={`plan-delete-${planNo}`}
+                className="text-red-400 hover:text-red-300"
+              >
+                ✕
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
       <div className="mt-12 overflow-x-auto border border-white/10" data-testid="pricing-table">
         <table className="w-full text-left text-sm">
           <thead>
