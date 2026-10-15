@@ -81,7 +81,40 @@ export default function PricingDashboard() {
       setSaving((s) => ({ ...s, [stoneId]: false }));
     }
   };
+  const deleteStone = async (s) => {
+    const label = s.color_range ? `${s.color_range} (both colour rows)` : s.color;
+    if (!window.confirm(`Delete this stone (Plan ${s.plan_no}, ${label}, ${s.pol_cts?.toFixed(2)} ct)?`)) return;
+    try {
+      await api.delete(`/pricing/quote-stones/${s.quote_stone_id}`);
+      toast.success("Stone deleted");
+      loadPacketItems(selectedPacket);
+    } catch (err) {
+      toast.error(formatApiError(err.response?.data?.detail));
+    }
+  };
 
+  const deletePlan = async (planNo) => {
+    if (!window.confirm(`Delete ALL stones in Plan ${planNo} of Packet ${selectedPacket}? This cannot be undone.`)) return;
+    try {
+      await api.delete("/pricing/plans", { params: { packet_no: selectedPacket, plan_no: planNo } });
+      toast.success(`Plan ${planNo} deleted`);
+      loadPacketItems(selectedPacket);
+    } catch (err) {
+      toast.error(formatApiError(err.response?.data?.detail));
+    }
+  };
+
+  const deletePacket = async (packetNo) => {
+    if (!window.confirm(`Delete Packet ${packetNo} with ALL its plans and stones? This cannot be undone.`)) return;
+    try {
+      await api.delete("/pricing/packets", { params: { packet_no: packetNo } });
+      toast.success(`Packet ${packetNo} deleted`);
+      if (selectedPacket === packetNo) backToPackets();
+      else loadPackets();
+    } catch (err) {
+      toast.error(formatApiError(err.response?.data?.detail));
+    }
+  };
   const fmt = (n) =>
     n == null ? "—" : `$${Number(n).toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
 
@@ -215,7 +248,10 @@ export default function PricingDashboard() {
               <th className="px-5 py-4">Gross</th>
               <th className="px-5 py-4">Labour</th>
               <th className="px-5 py-4">Net</th>
+              <th className="px-5 py-4">Entered by</th>
+              <th className="px-5 py-4">Priced by</th>
               <th className="px-5 py-4">Status</th>
+              <th className="px-5 py-4"></th>
             </tr>
           </thead>
           <tbody>
@@ -256,16 +292,27 @@ export default function PricingDashboard() {
                 <td className="px-5 py-4 font-mono text-xs text-gold">{fmt(s.gross_value)}</td>
                 <td className="px-5 py-4 font-mono text-xs">{fmt(s.labour)}</td>
                 <td className="px-5 py-4 font-mono text-xs text-emerald-400">{fmt(s.net_value)}</td>
+                <td className="px-5 py-4 text-xs">{s.entered_by ?? "—"}</td>
+                <td className="px-5 py-4 text-xs">{s.priced_by_name ?? "—"}</td>
                 <td className="px-5 py-4">
                   <span className={`font-mono text-[10px] uppercase tracking-[0.15em] ${s.status === "priced" ? "text-emerald-400" : "text-gold"}`}>
                     {s.status}
                   </span>
                 </td>
+                  <td className="px-5 py-4">
+                  <button
+                    onClick={() => deleteStone(s)}
+                    data-testid={`pricing-delete-${s.quote_stone_id}`}
+                    className="font-mono text-[10px] uppercase tracking-[0.15em] text-red-400 hover:underline"
+                  >
+                    Delete
+                  </button>
+                </td>
               </tr>
             ))}
             {items.length === 0 && (
               <tr>
-                <td colSpan={11} className="px-5 py-10 text-center font-mono text-xs uppercase tracking-[0.2em] text-zinc-600">
+                <td colSpan={14} className="px-5 py-10 text-center font-mono text-xs uppercase tracking-[0.2em] text-zinc-600">
                   No stones in this packet
                 </td>
               </tr>
