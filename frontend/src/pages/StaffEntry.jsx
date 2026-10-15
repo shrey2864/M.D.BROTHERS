@@ -68,7 +68,33 @@ const handleLogout = async () => {
         <p className="font-serif text-3xl italic text-zinc-500">Not authorized.</p>
       </div>
     );
+  const deleteStone = async (s) => {
+    const label = s.color_range ? `${s.color_range} (both colour rows)` : s.color;
+    if (!window.confirm(`Delete this stone (Packet ${s.packet_no}, Plan ${s.plan_no}, ${label}, ${s.pol_cts?.toFixed(2)} ct)?`)) return;
+    try {
+      await api.delete(`/pricing/quote-stones/${s.quote_stone_id}`);
+      toast.success("Stone deleted");
+      load();
+    } catch (err) {
+      toast.error(formatApiError(err.response?.data?.detail));
+    }
+  };
 
+  const deletePlan = async (packetNo, planNo) => {
+    if (!window.confirm(`Delete all your unpriced stones in Packet ${packetNo}, Plan ${planNo}?`)) return;
+    try {
+      await api.delete("/pricing/plans", { params: { packet_no: packetNo, plan_no: planNo } });
+      toast.success(`Plan ${planNo} deleted`);
+      load();
+    } catch (err) {
+      toast.error(formatApiError(err.response?.data?.detail));
+    }
+  };
+
+  const canDelete = (s) => s.created_by === user.user_id && s.status !== "priced";
+  const myPlans = [
+    ...new Map(items.filter(canDelete).map((s) => [`${s.packet_no}||${s.plan_no}`, s])).values(),
+  ];
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
 
   // Staff picks a full shape name; we look up its Rapaport code separately
@@ -168,13 +194,30 @@ const handleLogout = async () => {
           </button>
         </div>
       </form>
+            {myPlans.length > 0 && (
+        <div className="mt-12 flex flex-wrap items-center gap-3" data-testid="staff-plan-chips">
+          <span className="font-mono text-[10px] uppercase tracking-[0.25em] text-zinc-500">Your plans</span>
+          {myPlans.map((s) => (
+            <span key={`${s.packet_no}-${s.plan_no}`} className="flex items-center gap-2 border border-white/10 px-3 py-1 font-mono text-xs text-zinc-300">
+              {s.packet_no} · Plan {s.plan_no}
+              <button
+                onClick={() => deletePlan(s.packet_no, s.plan_no)}
+                title="Delete this plan"
+                className="text-red-400 hover:text-red-300"
+              >
+                ✕
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
 
       <div className="mt-12 overflow-x-auto border border-white/10" data-testid="staff-entry-table">
         <table className="w-full text-left text-sm">
           <thead>
             <tr className="border-b border-white/10 font-mono text-[10px] uppercase tracking-[0.25em] text-zinc-500">
               <th className="px-5 py-4">Packet</th><th className="px-5 py-4">Plan</th><th className="px-5 py-4">Shape</th>
-              <th className="px-5 py-4">Carat</th><th className="px-5 py-4">Color/Clarity</th><th className="px-5 py-4">Status</th>
+              <th className="px-5 py-4">Carat</th><th className="px-5 py-4">Color/Clarity</th><th className="px-5 py-4">Status</th><th className="px-5 py-4"></th>
             </tr>
           </thead>
           <tbody>
@@ -185,15 +228,26 @@ const handleLogout = async () => {
                 <td className="px-5 py-4">{SHAPE_LABEL[s.shape] || s.shape}</td>
                 <td className="px-5 py-4 font-mono text-xs">{s.pol_cts?.toFixed(2)}</td>
                 <td className="px-5 py-4 font-mono text-xs">{s.color}{s.color_range ? ` (${s.color_range})` : ""} • {s.clarity}</td>
-                <td className="px-5 py-4">
+                                <td className="px-5 py-4">
                   <span className={`font-mono text-[10px] uppercase tracking-[0.15em] ${s.status === "priced" ? "text-emerald-400" : "text-gold"}`}>
                     {s.status}
                   </span>
                 </td>
+                <td className="px-5 py-4">
+                  {canDelete(s) && (
+                    <button
+                      onClick={() => deleteStone(s)}
+                      data-testid={`staff-delete-${s.quote_stone_id}`}
+                      className="font-mono text-[10px] uppercase tracking-[0.15em] text-red-400 hover:underline"
+                    >
+                      Delete
+                    </button>
+                  )}
+                </td>
               </tr>
             ))}
             {items.length === 0 && (
-              <tr><td colSpan={6} className="px-5 py-10 text-center font-mono text-xs uppercase tracking-[0.2em] text-zinc-600">No stones added yet</td></tr>
+              <tr><td colSpan={7} className="px-5 py-10 text-center font-mono text-xs uppercase tracking-[0.2em] text-zinc-600">No stones added yet</td></tr>
             )}
           </tbody>
         </table>
