@@ -1491,6 +1491,34 @@ GT7_COLUMNS = [
 ]
 
 
+async def attach_user_names(items: list) -> list:
+    ids = {i.get("created_by") for i in items} | {i.get("priced_by") for i in items}
+    ids.discard(None)
+    users = await db.users.find({"user_id": {"$in": list(ids)}}, {"_id": 0, "user_id": 1, "name": 1}).to_list(500)
+    names = {u["user_id"]: u["name"] for u in users}
+    for i in items:
+        cb, pb = i.get("created_by"), i.get("priced_by")
+        i["entered_by"] = names.get(cb, "(deleted user)") if cb else None
+        i["priced_by_name"] = names.get(pb, "(deleted user)") if pb else None
+    return items
+
+
+def _row_ranges(letter: str, rows: list) -> str:
+    """[2,3,4,7] -> 'D2:D4,D7'  (keeps the SUM formula short)"""
+    parts, start, prev = [], None, None
+    for r in rows:
+        if start is None:
+            start = prev = r
+        elif r == prev + 1:
+            prev = r
+        else:
+            parts.append(f"{letter}{start}:{letter}{prev}" if prev > start else f"{letter}{start}")
+            start = prev = r
+    if start is not None:
+        parts.append(f"{letter}{start}:{letter}{prev}" if prev > start else f"{letter}{start}")
+    return ",".join(parts)
+
+
 @api_router.get("/pricing/quote-stones/export")
 async def export_quote_stones_excel(packet_no: Optional[str] = None, user: dict = Depends(get_current_user)):
     if not user_can_export_excel(user):
@@ -1498,6 +1526,7 @@ async def export_quote_stones_excel(packet_no: Optional[str] = None, user: dict 
     query = {"packet_no": packet_no} if packet_no else {}
     items = await db.quote_stones.find(query, {"_id": 0}).to_list(5000)
     items = [with_computed_pricing(i) for i in items]
+    await attach_user_names(items)
     items.sort(key=lambda s: (
         str(s.get("packet_no", "")),
         plan_group_sort_key(s),
@@ -1515,31 +1544,54 @@ async def export_quote_stones_excel(packet_no: Optional[str] = None, user: dict 
 
     bold = Font(bold=True)
     total_fill = PatternFill("solid", fgColor="FFF2CC")
+    input_fill = PatternFill("solid", fgColor="E2EFDA")  # light green = edit me
+    money = "#,##0.00"
+
+    # column letters, looked up by field name
+    L = {key: get_column_letter(i) for i, (key, _) in enumerate(GT7_COLUMNS, start=1)}
+    CTS, RATE, DISC = L["pol_cts"], L["rapaport_rate"], L["discount_percent"]
+    GROSS, LAB, NET = L["gross_value"], L["labour"], L["net_value"]
+
+    def write_stone_row(stone: dict) -> int:
+        ws.append([stone.get(key) for key, _ in GT7_COLUMNS])
+        r = ws.max_row
+        # Gross = Rapaport x (1 - Disc/100) x Carats   (blank until a discount is entered)
+        ws[f"{GROSS}{r}"] = (
+            f'=IF(AND(ISNUMBER({RATE}{r}),ISNUMBER({DISC}{r})),'
+            f'ROUND({RATE}{r}*(1-{DISC}{r}/100)*{CTS}{r},2),"")'
+        )
+        # Net = Gross - Labour
+        ws[f"{NET}{r}"] = f'=IF(ISNUMBER({GROSS}{r}),ROUND({GROSS}{r}-{LAB}{r},2),"")'
+        ws[f"{GROSS}{r}"].number_format = money
+        ws[f"{NET}{r}"].number_format = money
+        ws[f"{DISC}{r}"].fill = input_fill
+        return r
 
     def group_key(s):
         return (str(s.get("packet_no", "")), plan_group_of(s.get("plan_no", "")))
 
-    # One block per (packet, plan group): all its stone rows, then a TOTAL row.
+    # One block per (packet, plan group): its stone rows, then a TOTAL row.
     for (pkt, _grp), block in groupby(items, key=group_key):
         block = list(block)
+        counted_rows = []
         for stone in block:
-            ws.append([stone.get(key) for key, _ in GT7_COLUMNS])
+            r = write_stone_row(stone)
+            # A colour-range stone (e.g. D-E) has two rows but is ONE stone,
+            # so only its first colour row is counted in the total.
+            if (stone.get("range_index") or 0) == 0:
+                counted_rows.append(r)
 
-        # A colour-range stone has two rows (e.g. D and E) but is ONE stone,
-        # so in the total only its first colour row is counted. This stops
-        # carats and values from being added twice.
-        counted = [s for s in block if (s.get("range_index") or 0) == 0]
         plans = sorted({str(s.get("plan_no", "")) for s in block}, key=lambda p: p.upper())
-
-        total = {key: None for key, _ in GT7_COLUMNS}
-        total["packet_no"] = pkt
-        total["plan_no"] = f"TOTAL ({', '.join(plans)})"
-        total["pol_cts"] = round(sum(s.get("pol_cts") or 0 for s in counted), 3)
-        total["gross_value"] = round(sum(s.get("gross_value") or 0 for s in counted), 2)
-        total["labour"] = round(sum(s.get("labour") or 0 for s in counted), 2)
-        total["net_value"] = round(sum(s.get("net_value") or 0 for s in counted), 2)
-        ws.append([total[key] for key, _ in GT7_COLUMNS])
-        for cell in ws[ws.max_row]:
+        total_values = [None] * len(GT7_COLUMNS)
+        total_values[0] = pkt
+        total_values[1] = f"TOTAL ({', '.join(plans)})"
+        ws.append(total_values)
+        tr = ws.max_row
+        for letter in (CTS, GROSS, LAB, NET):
+            ws[f"{letter}{tr}"] = f"=SUM({_row_ranges(letter, counted_rows)})"
+        for letter in (GROSS, LAB, NET):
+            ws[f"{letter}{tr}"].number_format = money
+        for cell in ws[tr]:
             cell.font = bold
             cell.fill = total_fill
         ws.append([])  # blank spacer row between groups
