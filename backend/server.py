@@ -315,6 +315,8 @@ async def login(body: LoginBody, request: Request, response: Response):
         )
         raise HTTPException(status_code=401, detail="Invalid email or password")
     await db.login_attempts.delete_one({"identifier": identifier})
+    if user.get("role") == "portal_pending":
+            raise HTTPException(status_code=403, detail="Your access request is waiting for admin approval")
     set_auth_cookies(response, user["user_id"], email)
     return public_user(user)
 
@@ -1478,6 +1480,77 @@ async def delete_packet(packet_no: str, user: dict = Depends(require_pricing_acc
     if result.deleted_count == 0:
         raise HTTPException(status_code=404, detail="Packet not found")
     return {"status": "deleted", "deleted": result.deleted_count}
+
+
+class PortalSignupBody(BaseModel):
+    name: str
+    email: EmailStr
+    password: str
+    access_code: Optional[str] = None
+
+
+@api_router.post("/portal/request-access")
+async def portal_request_access(body: PortalSignupBody):
+    # Optional: set PORTAL_SIGNUP_CODE in Render to require a code at signup.
+    required = os.environ.get("PORTAL_SIGNUP_CODE")
+    if required and (body.access_code or "").strip() != required:
+        raise HTTPException(status_code=403, detail="Wrong access code")
+    if len(body.password) < 8:
+        raise HTTPException(status_code=400, detail="Password must be at least 8 characters")
+    email = body.email.lower()
+    if await db.users.find_one({"email": email}):
+        raise HTTPException(status_code=400, detail="Email already registered")
+    await db.users.insert_one({
+        "user_id": str(uuid.uuid4()),
+        "name": body.name.strip(),
+        "email": email,
+        "password_hash": hash_password(body.password),
+        "role": "portal_pending",   # can't do anything until admin gives access
+        "status": "pending",
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    })
+    return {"status": "requested"}
+
+
+PORTAL_ROLES = ("portal_pending", "staff", "pricing_manager")
+
+
+@api_router.get("/admin/portal-users")
+async def admin_list_portal_users(user: dict = Depends(require_admin)):
+    items = await db.users.find(
+        {"role": {"$in": list(PORTAL_ROLES)}}, {"_id": 0, "password_hash": 0}
+    ).sort("created_at", -1).to_list(500)
+    return {"items": items, "total": len(items)}
+
+
+class PortalRoleBody(BaseModel):
+    role: str  # "staff" | "pricing_manager" | "portal_pending" (= remove access)
+
+
+@api_router.post("/admin/portal-users/{user_id}/role")
+async def admin_set_portal_role(user_id: str, body: PortalRoleBody, user: dict = Depends(require_admin)):
+    if body.role not in PORTAL_ROLES:
+        raise HTTPException(status_code=400, detail="Invalid role")
+    target = await db.users.find_one({"user_id": user_id})
+    if not target or target.get("role") not in PORTAL_ROLES:
+        raise HTTPException(status_code=404, detail="Portal user not found")
+    update = {
+        "role": body.role,
+        "status": "pending" if body.role == "portal_pending" else "approved",
+        "permissions": None,
+    }
+    if body.role == "pricing_manager":
+        update["permissions"] = {**PRICING_MANAGER_DEFAULT_PERMISSIONS, **(target.get("permissions") or {})}
+    await db.users.update_one({"user_id": user_id}, {"$set": update})
+    return {"status": "updated", "role": body.role}
+
+
+@api_router.delete("/admin/portal-users/{user_id}")
+async def admin_delete_portal_user(user_id: str, user: dict = Depends(require_admin)):
+    result = await db.users.delete_one({"user_id": user_id, "role": {"$in": list(PORTAL_ROLES)}})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Portal user not found")
+    return {"status": "deleted"}
 
 
 GT7_COLUMNS = [
