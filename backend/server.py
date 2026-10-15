@@ -1292,6 +1292,7 @@ class QuoteStoneBody(BaseModel):
     symmetry: Optional[str] = None
     fluorescence: Optional[str] = None
     black_no_black: Optional[str] = None
+    lab: Optional[str] = None
     table_pct: Optional[float] = None
     girdle_pct: Optional[float] = None
     td: Optional[float] = None
@@ -1435,7 +1436,7 @@ GT7_COLUMNS = [
     ("pol_cts", "PolCts"), ("color", "RefColor"), ("color_range", "ColourRange"),
     ("clarity", "RefPurity"),
     ("cut", "SarinCut"), ("symmetry", "Symm"), ("fluorescence", "Fls"),
-    ("black_no_black", "BlackNoBlack"), ("rapaport_rate", "Rapaport"),
+    ("black_no_black", "BlackNoBlack"), ("lab", "Lab"), ("rapaport_rate", "Rapaport"),
     ("discount_percent", "RefDisc%"), ("gross_value", "GrossValue"),
     ("labour", "Labour"), ("net_value", "NetValue"),
     ("table_pct", "Table%"), ("girdle_pct", "Girdle%"), ("td", "TD"),
