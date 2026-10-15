@@ -1429,6 +1429,53 @@ async def set_quote_stone_discount(quote_stone_id: str, body: SetDiscountBody, u
         raise HTTPException(status_code=404, detail="Quote stone not found")
     stone = await db.quote_stones.find_one({"quote_stone_id": quote_stone_id}, {"_id": 0})
     return with_computed_pricing(stone)
+    
+
+def delete_scope(user: dict) -> dict:
+    """Extra filter applied to deletes. Empty for admin / pricing managers."""
+    if user_has_pricing_access(user):
+        return {}
+    return {"created_by": user["user_id"], "status": "pending"}
+
+
+NOT_ALLOWED_MSG = "Not found, or you can only delete your own stones that are not priced yet"
+
+
+@api_router.delete("/pricing/quote-stones/{quote_stone_id}")
+async def delete_quote_stone(quote_stone_id: str, user: dict = Depends(require_staff_or_pricing)):
+    scope = delete_scope(user)
+    stone = await db.quote_stones.find_one({"quote_stone_id": quote_stone_id, **scope}, {"_id": 0})
+    if not stone:
+        raise HTTPException(status_code=404, detail=NOT_ALLOWED_MSG)
+
+    # A colour range (e.g. D-E) is one stone with two rows, so both go together.
+    if stone.get("range_id"):
+        if scope and await db.quote_stones.count_documents({"range_id": stone["range_id"], "status": "priced"}):
+            raise HTTPException(status_code=403, detail="This stone is already priced")
+        result = await db.quote_stones.delete_many({"range_id": stone["range_id"], **scope})
+    else:
+        result = await db.quote_stones.delete_one({"quote_stone_id": quote_stone_id, **scope})
+    return {"status": "deleted", "deleted": result.deleted_count}
+
+
+@api_router.delete("/pricing/plans")
+async def delete_plan(packet_no: str, plan_no: str, user: dict = Depends(require_staff_or_pricing)):
+    # Deletes the stones of ONE plan (exact plan name, e.g. "1A") in a packet.
+    result = await db.quote_stones.delete_many(
+        {"packet_no": packet_no, "plan_no": plan_no, **delete_scope(user)}
+    )
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail=NOT_ALLOWED_MSG)
+    return {"status": "deleted", "deleted": result.deleted_count}
+
+
+@api_router.delete("/pricing/packets")
+async def delete_packet(packet_no: str, user: dict = Depends(require_pricing_access)):
+    # Whole packet: only admin / pricing managers.
+    result = await db.quote_stones.delete_many({"packet_no": packet_no})
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Packet not found")
+    return {"status": "deleted", "deleted": result.deleted_count}
 
 
 GT7_COLUMNS = [
