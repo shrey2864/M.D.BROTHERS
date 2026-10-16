@@ -1242,7 +1242,7 @@ async def lookup_rapaport_rate(shape: str, carat: float, color: str, clarity: st
     row = await db.rapaport_rates.find_one({
         "shape": shape.upper(),
         "color": color.upper(),
-        "clarity": clarity.upper(),
+        "clarity": clarity.upper().rstrip("+-"),
         "carat_min": {"$lte": carat},
         "carat_max": {"$gte": carat},
     }, {"_id": 0, "rate": 1})
@@ -1301,6 +1301,9 @@ class QuoteStoneBody(BaseModel):
     td: Optional[float] = None
     ratio: Optional[float] = None
     remarks: Optional[str] = None
+    rough_name: Optional[str] = None
+    planner_name: Optional[str] = None
+    rough_weight: Optional[float] = None
 
 
 def staff_view(stone: dict) -> dict:
@@ -1324,20 +1327,35 @@ def with_computed_pricing(stone: dict) -> dict:
     return out
 
 
+def compose_packet_no(rough_name: str, main_no: str) -> str:
+    """('CS-1', '100') -> 'CS-1-100'.  Never doubles the prefix."""
+    rough = (rough_name or "").strip()
+    main = (main_no or "").strip()
+    if rough and main and not main.upper().startswith(rough.upper() + "-"):
+        return f"{rough}-{main}"
+    return main
+
+
 @api_router.post("/pricing/quote-stones")
 async def create_quote_stone(body: QuoteStoneBody, user: dict = Depends(require_staff_or_pricing)):
-    # A range like "F-G" becomes TWO rows (F and G), each with its own
-    # Rapaport rate and its own discount. A single colour becomes one row.
     colours = split_colour(body.color)
     range_label = "-".join(colours) if len(colours) > 1 else None
     range_id = str(uuid.uuid4()) if range_label else None
     labour = await lookup_labour(body.shape, body.pol_cts)
     now = datetime.now(timezone.utc).isoformat()
 
+    rough = (body.rough_name or "").strip()
+    main_no = body.packet_no.strip()
+    full_packet = compose_packet_no(rough, main_no)   # e.g. CS-1-100
+
     created = []
     for idx, col in enumerate(colours):
         doc = body.model_dump()
         doc.update({
+            "packet_no": full_packet,
+            "packet_main_no": main_no,
+            "rough_name": rough or None,
+            "planner_name": (body.planner_name or "").strip() or None,
             "color": col,
             "color_range": range_label,
             "range_id": range_id,
@@ -1357,20 +1375,37 @@ async def create_quote_stone(body: QuoteStoneBody, user: dict = Depends(require_
     return {"items": created}
 
 
+def _natural_key(s) -> list:
+    # 'CS-1-100' -> ['CS-', 1, '-', 100]  so 2 sorts before 10
+    return [int(t) if t.isdigit() else t.upper() for t in re.split(r"(\d+)", str(s or ""))]
+
+
 @api_router.get("/pricing/quote-stones/packets")
 async def list_quote_stone_packets(user: dict = Depends(require_pricing_access)):
     pipeline = [
         {"$group": {
             "_id": "$packet_no",
+            "rough_name": {"$max": "$rough_name"},
             "plan_count": {"$addToSet": "$plan_no"},
             "stone_count": {"$sum": 1},
             "priced_count": {"$sum": {"$cond": [{"$eq": ["$status", "priced"]}, 1, 0]}},
             "latest": {"$max": "$created_at"},
         }},
-        {"$sort": {"latest": -1}},
     ]
     rows = await db.quote_stones.aggregate(pipeline).to_list(500)
-    return {
+    items = [
+        {
+            "packet_no": r["_id"],
+            "rough_name": r.get("rough_name"),
+            "plan_count": len({plan_group_of(p) for p in r["plan_count"]}),
+            "stone_count": r["stone_count"],
+            "priced_count": r["priced_count"],
+            "pending_count": r["stone_count"] - r["priced_count"],
+        }
+        for r in rows
+    ]
+    items.sort(key=lambda i: (_natural_key(i["rough_name"] or "~"), _natural_key(i["packet_no"])))
+    return {"items": items, "total": len(items)}
         "items": [
             {
                 "packet_no": r["_id"],
@@ -1554,7 +1589,8 @@ async def admin_delete_portal_user(user_id: str, user: dict = Depends(require_ad
 
 
 GT7_COLUMNS = [
-    ("packet_no", "PacketNo"), ("plan_no", "PlanNo"), ("shape", "Shape"),
+    ("packet_no", "PacketNo"), ("rough_name", "RoughName"), ("plan_no", "PlanNo"),
+    ("planner_name", "Planner"), ("rough_weight", "RoughWt"), ("shape", "Shape"),
     ("pol_cts", "PolCts"), ("color", "RefColor"), ("color_range", "ColourRange"),
     ("clarity", "RefPurity"),
     ("cut", "SarinCut"), ("symmetry", "Symm"), ("fluorescence", "Fls"),
