@@ -1421,18 +1421,6 @@ async def list_quote_stone_packets(user: dict = Depends(require_pricing_access))
     ]
     items.sort(key=lambda i: (_natural_key(i["rough_name"] or "~"), _natural_key(i["packet_no"])))
     return {"items": items, "total": len(items)}
-        "items": [
-            {
-                "packet_no": r["_id"],
-                "plan_count": len({plan_group_of(p) for p in r["plan_count"]}),
-                "stone_count": r["stone_count"],
-                "priced_count": r["priced_count"],
-                "pending_count": r["stone_count"] - r["priced_count"],
-            }
-            for r in rows
-        ],
-        "total": len(rows),
-    }
 
 @api_router.get("/pricing/quote-stones")
 async def list_quote_stones(
