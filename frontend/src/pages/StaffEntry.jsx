@@ -6,9 +6,11 @@ import { useAuth } from "@/context/AuthContext";
 import { Overline } from "@/components/Reveal";
 
 const EMPTY = {
-  packet_no: "", plan_no: "", shape: "BR", pol_cts: "", color: "D", clarity: "VS1",
+  rough_name: "", packet_no: "", plan_no: "", planner_name: "", rough_weight: "",
+  shape: "BR", pol_cts: "", color: "D", clarity: "VS1",
   cut: "EX", polish: "EX", symmetry: "EX", fluorescence: "NON",
-  black_no_black: "No black", lab: "GIA", table_pct: "", girdle_pct: "", td: "", ratio: "", remarks: "",
+  black_no_black: "No black", lab: "GIA",
+  table_pct: "", girdle_pct: "", td: "", ratio: "", remarks: "",
 };
 
 // Full names shown to staff; the "code" is what's actually sent to the backend.
@@ -35,19 +37,33 @@ const SHAPE_LABEL = { BR: "Round", PS: "Fancy shape" };
 const GRADES = ["EX", "VG", "GD"];
 const FLUORESCENCE = ["NON", "FNT", "MED", "STG"];
 const LABS = ["GIA", "IGI", "HRD"];
+
+// Single colours, then two-colour ranges (a range makes one row per colour).
 const SINGLE_COLORS = ["D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N"];
 const COLOR_RANGES = ["D-E", "E-F", "F-G", "G-H", "H-I", "I-J", "J-K", "K-L", "L-M", "M-N"];
 const COLORS = [...SINGLE_COLORS, ...COLOR_RANGES];
-const CLARITIES = ["IF", "VVS1", "VVS2", "VS1", "VS2", "SI1", "SI2", "SI3", "I1", "I2", "I3"];
+
+// Clarity with + and - (VVS1+, VVS1, VVS1-). IF stays plain.
+const BASE_CLARITIES = ["IF", "VVS1", "VVS2", "VS1", "VS2", "SI1", "SI2", "SI3", "I1", "I2", "I3"];
+const CLARITIES = BASE_CLARITIES.flatMap((c) => (c === "IF" ? [c] : [`${c}+`, c, `${c}-`]));
+
+// Rough name + main number -> full packet number, e.g. "CS-1" + "100" -> "CS-1-100"
+const composePacket = (rough, main) => {
+  const r = (rough || "").trim();
+  const m = (main || "").trim();
+  if (!r || !m) return m;
+  return m.toUpperCase().startsWith(`${r.toUpperCase()}-`) ? m : `${r}-${m}`;
+};
 
 export default function StaffEntry() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
-  
-const handleLogout = async () => {
-  await logout();
-  navigate("/portal-access", { replace: true });
-};
+
+  const handleLogout = async () => {
+    await logout();
+    navigate("/portal-access", { replace: true });
+  };
+
   const [form, setForm] = useState({ ...EMPTY, shapeLabel: "Round" });
   const [saving, setSaving] = useState(false);
   const [items, setItems] = useState([]);
@@ -68,6 +84,17 @@ const handleLogout = async () => {
         <p className="font-serif text-3xl italic text-zinc-500">Not authorized.</p>
       </div>
     );
+
+  const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
+
+  // Staff picks a full shape name; we look up its Rapaport code separately
+  // so "Marquise", "Oval", etc. all correctly send shape: "PS" to the backend,
+  // while what's shown on screen stays the specific name they picked.
+  const setShapeLabel = (label) => {
+    const match = SHAPES.find((s) => s.label === label);
+    setForm((f) => ({ ...f, shapeLabel: label, shape: match ? match.code : f.shape }));
+  };
+
   const deleteStone = async (s) => {
     const label = s.color_range ? `${s.color_range} (both colour rows)` : s.color;
     if (!window.confirm(`Delete this stone (Packet ${s.packet_no}, Plan ${s.plan_no}, ${label}, ${s.pol_cts?.toFixed(2)} ct)?`)) return;
@@ -95,15 +122,10 @@ const handleLogout = async () => {
   const myPlans = [
     ...new Map(items.filter(canDelete).map((s) => [`${s.packet_no}||${s.plan_no}`, s])).values(),
   ];
-  const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
 
-  // Staff picks a full shape name; we look up its Rapaport code separately
-  // so "Marquise", "Oval", etc. all correctly send shape: "PS" to the backend,
-  // while what's shown on screen stays the specific name they picked.
-  const setShapeLabel = (label) => {
-    const match = SHAPES.find((s) => s.label === label);
-    setForm((f) => ({ ...f, shapeLabel: label, shape: match ? match.code : f.shape }));
-  };
+  // rough names already used, offered as suggestions while typing
+  const roughNames = [...new Set(items.map((s) => s.rough_name).filter(Boolean))];
+  const packetPreview = form.packet_no.trim() ? composePacket(form.rough_name, form.packet_no) : null;
 
   const submit = async (e) => {
     e.preventDefault();
@@ -111,6 +133,10 @@ const handleLogout = async () => {
     const { shapeLabel, ...rest } = form;
     const payload = {
       ...rest,
+      rough_name: form.rough_name.trim(),
+      packet_no: form.packet_no.trim(),
+      planner_name: form.planner_name.trim(),
+      rough_weight: form.rough_weight ? parseFloat(form.rough_weight) : null,
       pol_cts: parseFloat(form.pol_cts),
       table_pct: form.table_pct ? parseFloat(form.table_pct) : null,
       girdle_pct: form.girdle_pct ? parseFloat(form.girdle_pct) : null,
@@ -120,8 +146,17 @@ const handleLogout = async () => {
     };
     try {
       await api.post("/pricing/quote-stones", payload);
-      toast.success(`Stone added — Packet ${form.packet_no}, Plan ${form.plan_no}`);
-      setForm({ ...EMPTY, shapeLabel: "Round", packet_no: form.packet_no, plan_no: form.plan_no });
+      toast.success(`Stone added — Packet ${composePacket(form.rough_name, form.packet_no)}, Plan ${form.plan_no}`);
+      // keep the packet-level details so the next stone is quick to enter
+      setForm({
+        ...EMPTY,
+        shapeLabel: "Round",
+        rough_name: form.rough_name,
+        packet_no: form.packet_no,
+        plan_no: form.plan_no,
+        planner_name: form.planner_name,
+        rough_weight: form.rough_weight,
+      });
       load();
     } catch (err) {
       toast.error(formatApiError(err.response?.data?.detail));
@@ -138,19 +173,25 @@ const handleLogout = async () => {
       </h1>
       <p className="mt-3 text-sm text-zinc-500">Enter the specs — pricing is handled separately.</p>
       <div className="mt-6 flex justify-end">
-  <button
-    onClick={handleLogout}
-    data-testid="staff-logout-button"
-    className="border border-white/20 px-6 py-2 font-mono text-[11px] uppercase tracking-[0.25em] text-zinc-400 transition-colors hover:border-gold hover:text-gold"
-  >
-    Log out
-  </button>
-</div>
+        <button
+          onClick={handleLogout}
+          data-testid="staff-logout-button"
+          className="border border-white/20 px-6 py-2 font-mono text-[11px] uppercase tracking-[0.25em] text-zinc-400 transition-colors hover:border-gold hover:text-gold"
+        >
+          Log out
+        </button>
+      </div>
 
       <form onSubmit={submit} className="mt-12 border border-white/10 bg-[#0C1E30] p-8" data-testid="staff-entry-form">
         <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-4">
-          <input required placeholder="Packet No" value={form.packet_no} onChange={(e) => set("packet_no", e.target.value)} className="lux-input" data-testid="staff-packet-input" />
+          <input required list="rough-names" placeholder="Rough name (CS, CS-1, CS-2…)" value={form.rough_name} onChange={(e) => set("rough_name", e.target.value)} className="lux-input" data-testid="staff-rough-name-input" />
+          <datalist id="rough-names">
+            {roughNames.map((n) => <option key={n} value={n} />)}
+          </datalist>
+          <input required placeholder="Packet No (100)" value={form.packet_no} onChange={(e) => set("packet_no", e.target.value)} className="lux-input" data-testid="staff-packet-input" />
           <input required placeholder="Plan No (1, 1A, 2…)" value={form.plan_no} onChange={(e) => set("plan_no", e.target.value)} className="lux-input" data-testid="staff-plan-input" />
+          <input required placeholder="Planner name" value={form.planner_name} onChange={(e) => set("planner_name", e.target.value)} className="lux-input" data-testid="staff-planner-input" />
+          <input required type="number" step="0.001" min="0.001" placeholder="Rough weight" value={form.rough_weight} onChange={(e) => set("rough_weight", e.target.value)} className="lux-input" data-testid="staff-rough-weight-input" />
           <input required type="number" step="0.01" min="0.01" placeholder="Carat" value={form.pol_cts} onChange={(e) => set("pol_cts", e.target.value)} className="lux-input" data-testid="staff-carat-input" />
           <input placeholder="Remarks (optional)" value={form.remarks} onChange={(e) => set("remarks", e.target.value)} className="lux-input" data-testid="staff-remarks-input" />
 
@@ -187,6 +228,12 @@ const handleLogout = async () => {
           <input type="number" step="0.01" placeholder="Ratio" value={form.ratio} onChange={(e) => set("ratio", e.target.value)} className="lux-input" data-testid="staff-ratio-input" />
         </div>
 
+        {packetPreview && (
+          <p className="mt-6 font-mono text-xs uppercase tracking-[0.2em] text-gold" data-testid="staff-packet-preview">
+            Packet will be saved as: {packetPreview}
+          </p>
+        )}
+
         <div className="mt-8 flex justify-end">
           <button type="submit" disabled={saving} data-testid="staff-submit-button"
             className="border border-gold px-10 py-3 font-mono text-[11px] uppercase tracking-[0.25em] text-gold transition-colors hover:bg-gold hover:text-black active:scale-95 disabled:opacity-50">
@@ -194,7 +241,8 @@ const handleLogout = async () => {
           </button>
         </div>
       </form>
-            {myPlans.length > 0 && (
+
+      {myPlans.length > 0 && (
         <div className="mt-12 flex flex-wrap items-center gap-3" data-testid="staff-plan-chips">
           <span className="font-mono text-[10px] uppercase tracking-[0.25em] text-zinc-500">Your plans</span>
           {myPlans.map((s) => (
@@ -228,7 +276,7 @@ const handleLogout = async () => {
                 <td className="px-5 py-4">{SHAPE_LABEL[s.shape] || s.shape}</td>
                 <td className="px-5 py-4 font-mono text-xs">{s.pol_cts?.toFixed(2)}</td>
                 <td className="px-5 py-4 font-mono text-xs">{s.color}{s.color_range ? ` (${s.color_range})` : ""} • {s.clarity}</td>
-                                <td className="px-5 py-4">
+                <td className="px-5 py-4">
                   <span className={`font-mono text-[10px] uppercase tracking-[0.15em] ${s.status === "priced" ? "text-emerald-400" : "text-gold"}`}>
                     {s.status}
                   </span>
