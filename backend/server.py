@@ -1304,15 +1304,30 @@ class QuoteStoneBody(BaseModel):
     rough_name: Optional[str] = None
     planner_name: Optional[str] = None
     rough_weight: Optional[float] = None
+    shape_name: Optional[str] = None
+
+
+def shape_display_of(stone: dict) -> str:
+    """The shape name to show people: Marquise, Oval, Heart, Round ..."""
+    if stone.get("shape_name"):
+        return stone["shape_name"]
+    # older stones: the name was saved at the end of Remarks, like "[Marquise]"
+    m = re.search(r"\[([^\]]+)\]\s*$", stone.get("remarks") or "")
+    if m:
+        return m.group(1)
+    return {"BR": "Round", "PS": "Fancy shape"}.get(stone.get("shape"), stone.get("shape"))
 
 
 def staff_view(stone: dict) -> dict:
     hidden = {"rapaport_rate", "discount_percent", "gross_value", "labour", "net_value", "priced_by", "priced_at"}
-    return {k: v for k, v in stone.items() if k not in hidden}
+    out = {k: v for k, v in stone.items() if k not in hidden}
+    out["shape_display"] = shape_display_of(stone)
+    return out
 
 
 def with_computed_pricing(stone: dict) -> dict:
     out = dict(stone)
+    out["shape_display"] = shape_display_of(out)
     rate = out.get("rapaport_rate")
     disc = out.get("discount_percent")
     labour = out.get("labour") or 0.0
@@ -1409,7 +1424,6 @@ async def list_quote_stone_packets(user: dict = Depends(require_pricing_access))
         "items": [
             {
                 "packet_no": r["_id"],
-                # Plan 1 and Plan 1A count as ONE plan group
                 "plan_count": len({plan_group_of(p) for p in r["plan_count"]}),
                 "stone_count": r["stone_count"],
                 "priced_count": r["priced_count"],
@@ -1419,7 +1433,6 @@ async def list_quote_stone_packets(user: dict = Depends(require_pricing_access))
         ],
         "total": len(rows),
     }
-
 
 @api_router.get("/pricing/quote-stones")
 async def list_quote_stones(
@@ -1590,7 +1603,7 @@ async def admin_delete_portal_user(user_id: str, user: dict = Depends(require_ad
 
 GT7_COLUMNS = [
     ("packet_no", "PacketNo"), ("rough_name", "RoughName"), ("plan_no", "PlanNo"),
-    ("planner_name", "Planner"), ("rough_weight", "RoughWt"), ("shape", "Shape"),
+    ("planner_name", "Planner"), ("rough_weight", "RoughWt"), ("shape_display", "Shape"),
     ("pol_cts", "PolCts"), ("color", "RefColor"), ("color_range", "ColourRange"),
     ("clarity", "RefPurity"),
     ("cut", "SarinCut"), ("symmetry", "Symm"), ("fluorescence", "Fls"),
