@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
-import { Download, ChevronLeft } from "lucide-react";
+import { Download, ChevronLeft, Printer } from "lucide-react";
 import { api, formatApiError, API_BASE } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import { Overline } from "@/components/Reveal";
@@ -149,7 +149,18 @@ export default function PricingDashboard() {
             </h1>
             <p className="mt-3 text-sm text-zinc-500">{packets.length} packets</p>
           </div>
-          <div className="flex items-center gap-4">{LogoutButton}</div>
+          <div className="flex items-center gap-4">
+            <a
+              href={`${API_BASE}/pricing/quote-stones/export-print`}
+              target="_blank"
+              rel="noopener noreferrer"
+              data-testid="pricing-print-all-button"
+              className="flex items-center gap-2 border border-white/30 px-6 py-2 font-mono text-[11px] uppercase tracking-[0.25em] text-zinc-300 transition-colors hover:border-gold hover:text-gold"
+            >
+              <Printer className="h-4 w-4" strokeWidth={1.5} /> Print all slips
+            </a>
+            {LogoutButton}
+          </div>
         </div>
 
         <div className="mt-12 overflow-x-auto border border-white/10" data-testid="packets-table">
@@ -157,6 +168,7 @@ export default function PricingDashboard() {
             <thead>
               <tr className="border-b border-white/10 font-mono text-[10px] uppercase tracking-[0.25em] text-zinc-500">
                 <th className="px-5 py-4">Packet</th>
+                <th className="px-5 py-4">Rough</th>
                 <th className="px-5 py-4">Plans</th>
                 <th className="px-5 py-4">Stones</th>
                 <th className="px-5 py-4">Priced</th>
@@ -174,6 +186,7 @@ export default function PricingDashboard() {
                   data-testid={`packet-row-${p.packet_no}`}
                 >
                   <td className="px-5 py-4 font-mono text-xs text-gold">{p.packet_no}</td>
+                  <td className="px-5 py-4 font-mono text-xs">{p.rough_name ?? "—"}</td>
                   <td className="px-5 py-4 font-mono text-xs">{p.plan_count}</td>
                   <td className="px-5 py-4 font-mono text-xs">{p.stone_count}</td>
                   <td className="px-5 py-4 font-mono text-xs text-emerald-400">{p.priced_count}</td>
@@ -197,14 +210,14 @@ export default function PricingDashboard() {
               ))}
               {!loadingPackets && packets.length === 0 && (
                 <tr>
-                  <td colSpan={7} className="px-5 py-10 text-center font-mono text-xs uppercase tracking-[0.2em] text-zinc-600">
+                  <td colSpan={8} className="px-5 py-10 text-center font-mono text-xs uppercase tracking-[0.2em] text-zinc-600">
                     No packets yet
                   </td>
                 </tr>
               )}
               {loadingPackets && (
                 <tr>
-                  <td colSpan={7} className="px-5 py-10 text-center font-mono text-xs uppercase tracking-[0.2em] text-zinc-600">
+                  <td colSpan={8} className="px-5 py-10 text-center font-mono text-xs uppercase tracking-[0.2em] text-zinc-600">
                     Loading…
                   </td>
                 </tr>
@@ -246,6 +259,15 @@ export default function PricingDashboard() {
           >
             <Download className="h-4 w-4" strokeWidth={1.5} /> Export Excel
           </a>
+          <a
+            href={`${API_BASE}/pricing/quote-stones/export-print?packet_no=${encodeURIComponent(selectedPacket)}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            data-testid="pricing-print-button"
+            className="flex items-center gap-2 border border-white/30 px-6 py-3 font-mono text-[11px] uppercase tracking-[0.25em] text-zinc-300 transition-colors hover:border-gold hover:text-gold active:scale-95"
+          >
+            <Printer className="h-4 w-4" strokeWidth={1.5} /> Print Slip
+          </a>
         </div>
       </div>
 
@@ -274,9 +296,15 @@ export default function PricingDashboard() {
             <tr className="border-b border-white/10 font-mono text-[10px] uppercase tracking-[0.25em] text-zinc-500">
               <th className="px-5 py-4">Packet</th>
               <th className="px-5 py-4">Plan</th>
+              <th className="px-5 py-4">Planner</th>
+              <th className="px-5 py-4">Rough wt</th>
               <th className="px-5 py-4">Shape</th>
               <th className="px-5 py-4">Carat</th>
               <th className="px-5 py-4">Color/Clarity</th>
+              <th className="px-5 py-4">Fls</th>
+              <th className="px-5 py-4">Table %</th>
+              <th className="px-5 py-4">TD</th>
+              <th className="px-5 py-4">Ratio</th>
               <th className="px-5 py-4">Rapaport</th>
               <th className="px-5 py-4">Discount %</th>
               <th className="px-5 py-4">Gross</th>
@@ -293,9 +321,15 @@ export default function PricingDashboard() {
               <tr key={s.quote_stone_id} className="border-b border-white/5 text-zinc-300" data-testid={`pricing-row-${s.quote_stone_id}`}>
                 <td className="px-5 py-4 font-mono text-xs">{s.packet_no}</td>
                 <td className="px-5 py-4 font-mono text-xs">{s.plan_no}</td>
+                <td className="px-5 py-4 text-xs">{s.planner_name ?? "—"}</td>
+                <td className="px-5 py-4 font-mono text-xs">{s.rough_weight ?? "—"}</td>
                 <td className="px-5 py-4">{s.shape}</td>
                 <td className="px-5 py-4 font-mono text-xs">{s.pol_cts?.toFixed(2)}</td>
                 <td className="px-5 py-4 font-mono text-xs">{s.color}{s.color_range ? ` (${s.color_range})` : ""} • {s.clarity}</td>
+                <td className="px-5 py-4 font-mono text-xs">{s.fluorescence ?? "—"}</td>
+                <td className="px-5 py-4 font-mono text-xs">{s.table_pct ?? "—"}</td>
+                <td className="px-5 py-4 font-mono text-xs">{s.td ?? "—"}</td>
+                <td className="px-5 py-4 font-mono text-xs">{s.ratio ?? "—"}</td>
                 <td className="px-5 py-4 font-mono text-xs">{s.rapaport_rate ?? "—"}</td>
                 <td className="px-5 py-4">
                   <div className="flex items-center gap-2">
@@ -346,7 +380,7 @@ export default function PricingDashboard() {
             ))}
             {items.length === 0 && (
               <tr>
-                <td colSpan={14} className="px-5 py-10 text-center font-mono text-xs uppercase tracking-[0.2em] text-zinc-600">
+                <td colSpan={20} className="px-5 py-10 text-center font-mono text-xs uppercase tracking-[0.2em] text-zinc-600">
                   No stones in this packet
                 </td>
               </tr>
