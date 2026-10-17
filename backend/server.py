@@ -1306,6 +1306,9 @@ class QuoteStoneBody(BaseModel):
     rough_weight: Optional[float] = None
     shape_name: Optional[str] = None
 
+from openpyxl.styles import Alignment, Border, Side, Font, PatternFill
+from openpyxl.worksheet.properties import PageSetupProperties
+
 
 def shape_display_of(stone: dict) -> str:
     """The shape name to show people: Marquise, Oval, Heart, Round ..."""
@@ -1319,7 +1322,8 @@ def shape_display_of(stone: dict) -> str:
 
 
 def staff_view(stone: dict) -> dict:
-    hidden = {"rapaport_rate", "discount_percent", "gross_value", "labour", "net_value", "priced_by", "priced_at"}
+    hidden = {"rapaport_rate", "discount_percent", "gross_value", "labour", "net_value",
+              "priced_by", "priced_at", "is_final"}
     out = {k: v for k, v in stone.items() if k not in hidden}
     out["shape_display"] = shape_display_of(stone)
     return out
@@ -1328,6 +1332,7 @@ def staff_view(stone: dict) -> dict:
 def with_computed_pricing(stone: dict) -> dict:
     out = dict(stone)
     out["shape_display"] = shape_display_of(out)
+    out["final_flag"] = "FINAL" if out.get("is_final") else None
     rate = out.get("rapaport_rate")
     disc = out.get("discount_percent")
     labour = out.get("labour") or 0.0
@@ -1422,6 +1427,7 @@ async def list_quote_stone_packets(user: dict = Depends(require_pricing_access))
     items.sort(key=lambda i: (_natural_key(i["rough_name"] or "~"), _natural_key(i["packet_no"])))
     return {"items": items, "total": len(items)}
 
+
 @api_router.get("/pricing/quote-stones")
 async def list_quote_stones(
     packet_no: Optional[str] = None,
@@ -1469,7 +1475,32 @@ async def set_quote_stone_discount(quote_stone_id: str, body: SetDiscountBody, u
         raise HTTPException(status_code=404, detail="Quote stone not found")
     stone = await db.quote_stones.find_one({"quote_stone_id": quote_stone_id}, {"_id": 0})
     return with_computed_pricing(stone)
-    
+
+
+# ---------------- Final plan (one per packet) ----------------
+class FinalPlanBody(BaseModel):
+    packet_no: str
+    plan_no: str          # any plan name in the group, e.g. "1" or "1A"
+    final: bool = True    # False = remove the final mark
+
+
+@api_router.post("/pricing/final-plan")
+async def set_final_plan(body: FinalPlanBody, user: dict = Depends(get_current_user)):
+    if not user_can_set_discount(user):
+        raise HTTPException(status_code=403, detail="Not permitted to mark the final plan")
+    stones = await db.quote_stones.find(
+        {"packet_no": body.packet_no}, {"_id": 0, "quote_stone_id": 1, "plan_no": 1}
+    ).to_list(5000)
+    group = plan_group_of(body.plan_no)
+    ids = [s["quote_stone_id"] for s in stones if plan_group_of(s.get("plan_no", "")) == group]
+    if not ids:
+        raise HTTPException(status_code=404, detail="Plan not found in this packet")
+    # only one final plan per packet: clear the packet, then mark this group
+    await db.quote_stones.update_many({"packet_no": body.packet_no}, {"$set": {"is_final": False}})
+    if body.final:
+        await db.quote_stones.update_many({"quote_stone_id": {"$in": ids}}, {"$set": {"is_final": True}})
+    return {"status": "updated", "final": body.final, "plan_group": group}
+
 
 def delete_scope(user: dict) -> dict:
     """Extra filter applied to deletes. Empty for admin / pricing managers."""
@@ -1591,6 +1622,7 @@ async def admin_delete_portal_user(user_id: str, user: dict = Depends(require_ad
 
 GT7_COLUMNS = [
     ("packet_no", "PacketNo"), ("rough_name", "RoughName"), ("plan_no", "PlanNo"),
+    ("final_flag", "Final"),
     ("planner_name", "Planner"), ("rough_weight", "RoughWt"), ("shape_display", "Shape"),
     ("pol_cts", "PolCts"), ("color", "RefColor"), ("color_range", "ColourRange"),
     ("clarity", "RefPurity"),
@@ -1658,6 +1690,7 @@ async def export_quote_stones_excel(packet_no: Optional[str] = None, user: dict 
     bold = Font(bold=True)
     total_fill = PatternFill("solid", fgColor="FFF2CC")
     input_fill = PatternFill("solid", fgColor="E2EFDA")  # light green = edit me
+    final_fill = PatternFill("solid", fgColor="C6E0B4")  # green = final plan
     money = "#,##0.00"
 
     # column letters, looked up by field name
@@ -1668,6 +1701,9 @@ async def export_quote_stones_excel(packet_no: Optional[str] = None, user: dict 
     def write_stone_row(stone: dict) -> int:
         ws.append([stone.get(key) for key, _ in GT7_COLUMNS])
         r = ws.max_row
+        if stone.get("is_final"):
+            for cell in ws[r]:
+                cell.fill = final_fill
         # Gross = Rapaport x (1 - Disc/100) x Carats   (blank until a discount is entered)
         ws[f"{GROSS}{r}"] = (
             f'=IF(AND(ISNUMBER({RATE}{r}),ISNUMBER({DISC}{r})),'
@@ -1711,12 +1747,113 @@ async def export_quote_stones_excel(packet_no: Optional[str] = None, user: dict 
 
     for col_idx in range(1, len(GT7_COLUMNS) + 1):
         ws.column_dimensions[get_column_letter(col_idx)].width = 14
-    ws.column_dimensions["B"].width = 24  # PlanNo column holds the TOTAL label
+    ws.column_dimensions["B"].width = 24  # holds the TOTAL label
 
     buf = io.BytesIO()
     wb.save(buf)
     buf.seek(0)
     filename = f"quote-{packet_no or 'all'}.xlsx"
+    return StreamingResponse(
+        buf,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+# ---------------- Print slip: ONLY Plan and Value, one sheet per packet ----------------
+# Which value goes on the slip. "net_value" or "gross_value".
+PRINT_VALUE_FIELD = "net_value"
+
+
+@api_router.get("/pricing/quote-stones/export-print")
+async def export_print_slip(packet_no: Optional[str] = None, user: dict = Depends(get_current_user)):
+    if not user_can_export_excel(user):
+        raise HTTPException(status_code=403, detail="Not permitted to export")
+    query = {"packet_no": packet_no} if packet_no else {}
+    items = await db.quote_stones.find(query, {"_id": 0}).to_list(5000)
+    if not items:
+        raise HTTPException(status_code=404, detail="No stones found")
+    items = [with_computed_pricing(i) for i in items]
+    items.sort(key=lambda s: (
+        str(s.get("packet_no", "")),
+        plan_group_sort_key(s),
+        str(s.get("plan_no", "")).upper(),
+        s.get("created_at", ""),
+        s.get("range_index") or 0,
+    ))
+
+    thin = Side(style="thin", color="000000")
+    box = Border(left=thin, right=thin, top=thin, bottom=thin)
+    final_fill = PatternFill("solid", fgColor="C6E0B4")
+
+    wb = Workbook()
+    first = True
+    for pkt, pkt_items in groupby(items, key=lambda s: str(s.get("packet_no", ""))):
+        pkt_items = list(pkt_items)
+        ws = wb.active if first else wb.create_sheet()
+        first = False
+
+        title = re.sub(r"[\[\]:*?/\\]", "-", pkt)[:31] or "Packet"
+        base, n = title, 2
+        while title in wb.sheetnames and wb[title] is not ws:
+            title = f"{base[:28]}-{n}"
+            n += 1
+        ws.title = title
+
+        ws.merge_cells("A1:B1")
+        ws["A1"] = f"Packet {pkt}"
+        ws["A1"].font = Font(size=16, bold=True)
+        ws["A1"].alignment = Alignment(horizontal="center")
+
+        for col, text in (("A", "Plan"), ("B", "Value ($)")):
+            c = ws[f"{col}3"]
+            c.value = text
+            c.font = Font(size=13, bold=True)
+            c.border = box
+            c.alignment = Alignment(horizontal="center")
+
+        r = 3
+        # One row per plan group: Plan 1 + Plan 1A together, Plan 2 separate.
+        for grp, block in groupby(pkt_items, key=lambda s: plan_group_of(s.get("plan_no", ""))):
+            block = list(block)
+            # A colour-range stone has two rows but is ONE stone: count the first only.
+            counted = [s for s in block if (s.get("range_index") or 0) == 0]
+            vals = [s.get(PRINT_VALUE_FIELD) for s in counted]
+            value = None if any(v is None for v in vals) else round(sum(vals), 2)
+            is_final = any(s.get("is_final") for s in block)
+
+            r += 1
+            a = ws.cell(row=r, column=1, value=f"Plan {grp}" + ("  ★ FINAL" if is_final else ""))
+            b = ws.cell(row=r, column=2, value=value if value is not None else "Pending")
+            a.font = Font(size=13, bold=True)
+            b.font = Font(size=13)
+            a.border = box
+            b.border = box
+            a.alignment = Alignment(horizontal="center")
+            b.alignment = Alignment(horizontal="right")
+            if is_final:
+                a.fill = final_fill
+                b.fill = final_fill
+            if value is not None:
+                b.number_format = "#,##0.00"
+
+        ws.column_dimensions["A"].width = 20
+        ws.column_dimensions["B"].width = 18
+
+        # print setup: one page, centred, small margins
+        ws.print_area = f"A1:B{r}"
+        ws.page_setup.orientation = "portrait"
+        ws.page_setup.fitToWidth = 1
+        ws.page_setup.fitToHeight = 1
+        ws.sheet_properties.pageSetUpPr = PageSetupProperties(fitToPage=True)
+        ws.print_options.horizontalCentered = True
+        ws.page_margins.left = ws.page_margins.right = 0.5
+        ws.page_margins.top = ws.page_margins.bottom = 0.5
+
+    buf = io.BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+    filename = f"print-{packet_no or 'all'}.xlsx"
     return StreamingResponse(
         buf,
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
