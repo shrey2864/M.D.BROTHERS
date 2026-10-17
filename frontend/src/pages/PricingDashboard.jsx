@@ -13,6 +13,7 @@ export default function PricingDashboard() {
   const [packets, setPackets] = useState([]);
   const [loadingPackets, setLoadingPackets] = useState(true);
   const [selectedPacket, setSelectedPacket] = useState(null); // null = list view
+  const [search, setSearch] = useState("");
 
   const [items, setItems] = useState([]);
   const [discounts, setDiscounts] = useState({});
@@ -82,6 +83,22 @@ export default function PricingDashboard() {
     }
   };
 
+  // Mark (or unmark) a plan as the FINAL plan of this packet.
+  // Plan 1 and Plan 1A count as one plan, so marking either marks both.
+  const toggleFinal = async (planNo, makeFinal) => {
+    try {
+      await api.post("/pricing/final-plan", {
+        packet_no: selectedPacket,
+        plan_no: planNo,
+        final: makeFinal,
+      });
+      toast.success(makeFinal ? `Plan ${planNo} marked as final` : "Final mark removed");
+      loadPacketItems(selectedPacket);
+    } catch (err) {
+      toast.error(formatApiError(err.response?.data?.detail));
+    }
+  };
+
   const deleteStone = async (s) => {
     const label = s.color_range ? `${s.color_range} (both colour rows)` : s.color;
     if (!window.confirm(`Delete this stone (Plan ${s.plan_no}, ${label}, ${s.pol_cts?.toFixed(2)} ct)?`)) return;
@@ -127,6 +144,19 @@ export default function PricingDashboard() {
     loadPackets(); // refresh counts in case anything changed
   };
 
+  // Search on the packet list: type a rough name (CS) to list its packets.
+  // An exact rough name shows only that rough name; otherwise it matches any
+  // part of the rough name or packet number (so "CS-" shows CS-1, CS-2 ...).
+  const q = search.trim().toLowerCase();
+  const exactRough = q && packets.some((p) => (p.rough_name || "").toLowerCase() === q);
+  const shownPackets = !q
+    ? packets
+    : packets.filter((p) => {
+        const rough = (p.rough_name || "").toLowerCase();
+        if (exactRough) return rough === q;
+        return rough.includes(q) || String(p.packet_no).toLowerCase().includes(q);
+      });
+
   const LogoutButton = (
     <button
       onClick={handleLogout}
@@ -147,7 +177,9 @@ export default function PricingDashboard() {
             <h1 className="mt-4 font-serif text-5xl font-light text-white">
               Quote <span className="italic text-gold">packets.</span>
             </h1>
-            <p className="mt-3 text-sm text-zinc-500">{packets.length} packets</p>
+            <p className="mt-3 text-sm text-zinc-500">
+              {q ? `${shownPackets.length} of ${packets.length} packets` : `${packets.length} packets`}
+            </p>
           </div>
           <div className="flex items-center gap-4">
             <a
@@ -163,7 +195,27 @@ export default function PricingDashboard() {
           </div>
         </div>
 
-        <div className="mt-12 overflow-x-auto border border-white/10" data-testid="packets-table">
+        <div className="mt-10 flex items-center gap-4">
+          <input
+            type="text"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search rough name or packet no (e.g. CS, CS-1, 100)"
+            className="lux-input w-full max-w-xl"
+            data-testid="packet-search-input"
+          />
+          {search && (
+            <button
+              onClick={() => setSearch("")}
+              data-testid="packet-search-clear"
+              className="font-mono text-[10px] uppercase tracking-[0.2em] text-gold hover:underline"
+            >
+              Clear
+            </button>
+          )}
+        </div>
+
+        <div className="mt-8 overflow-x-auto border border-white/10" data-testid="packets-table">
           <table className="w-full text-left text-sm">
             <thead>
               <tr className="border-b border-white/10 font-mono text-[10px] uppercase tracking-[0.25em] text-zinc-500">
@@ -178,7 +230,7 @@ export default function PricingDashboard() {
               </tr>
             </thead>
             <tbody>
-              {packets.map((p) => (
+              {shownPackets.map((p) => (
                 <tr
                   key={p.packet_no}
                   onClick={() => setSelectedPacket(p.packet_no)}
@@ -208,10 +260,10 @@ export default function PricingDashboard() {
                   </td>
                 </tr>
               ))}
-              {!loadingPackets && packets.length === 0 && (
+              {!loadingPackets && shownPackets.length === 0 && (
                 <tr>
                   <td colSpan={8} className="px-5 py-10 text-center font-mono text-xs uppercase tracking-[0.2em] text-zinc-600">
-                    No packets yet
+                    {q ? "No packets match your search" : "No packets yet"}
                   </td>
                 </tr>
               )}
@@ -274,19 +326,38 @@ export default function PricingDashboard() {
       {items.length > 0 && (
         <div className="mt-8 flex flex-wrap items-center gap-3" data-testid="plan-chips">
           <span className="font-mono text-[10px] uppercase tracking-[0.25em] text-zinc-500">Plans</span>
-          {[...new Set(items.map((s) => s.plan_no))].map((planNo) => (
-            <span key={planNo} className="flex items-center gap-2 border border-white/10 px-3 py-1 font-mono text-xs text-zinc-300">
-              Plan {planNo}
-              <button
-                onClick={() => deletePlan(planNo)}
-                title={`Delete Plan ${planNo}`}
-                data-testid={`plan-delete-${planNo}`}
-                className="text-red-400 hover:text-red-300"
+          {[...new Set(items.map((s) => s.plan_no))].map((planNo) => {
+            const isFinal = items.some((s) => s.plan_no === planNo && s.is_final);
+            return (
+              <span
+                key={planNo}
+                className={`flex items-center gap-3 border px-3 py-1 font-mono text-xs ${
+                  isFinal
+                    ? "border-emerald-400 bg-emerald-500/10 text-emerald-300"
+                    : "border-white/10 text-zinc-300"
+                }`}
               >
-                ✕
-              </button>
-            </span>
-          ))}
+                Plan {planNo}
+                {isFinal && " ★ FINAL"}
+                <button
+                  onClick={() => toggleFinal(planNo, !isFinal)}
+                  title={isFinal ? "Remove the final mark" : "Mark this plan as final"}
+                  data-testid={`plan-final-${planNo}`}
+                  className="text-[10px] uppercase tracking-[0.15em] text-gold hover:underline"
+                >
+                  {isFinal ? "Unmark" : "Mark final"}
+                </button>
+                <button
+                  onClick={() => deletePlan(planNo)}
+                  title={`Delete Plan ${planNo}`}
+                  data-testid={`plan-delete-${planNo}`}
+                  className="text-red-400 hover:text-red-300"
+                >
+                  ✕
+                </button>
+              </span>
+            );
+          })}
         </div>
       )}
 
@@ -318,12 +389,23 @@ export default function PricingDashboard() {
           </thead>
           <tbody>
             {items.map((s) => (
-              <tr key={s.quote_stone_id} className="border-b border-white/5 text-zinc-300" data-testid={`pricing-row-${s.quote_stone_id}`}>
+              <tr
+                key={s.quote_stone_id}
+                className={`border-b border-white/5 text-zinc-300 ${s.is_final ? "bg-emerald-500/10" : ""}`}
+                data-testid={`pricing-row-${s.quote_stone_id}`}
+              >
                 <td className="px-5 py-4 font-mono text-xs">{s.packet_no}</td>
-                <td className="px-5 py-4 font-mono text-xs">{s.plan_no}</td>
+                <td className="px-5 py-4 font-mono text-xs">
+                  {s.plan_no}
+                  {s.is_final && (
+                    <span className="ml-2 border border-emerald-400 px-1.5 py-0.5 text-[9px] uppercase tracking-[0.15em] text-emerald-300">
+                      Final
+                    </span>
+                  )}
+                </td>
                 <td className="px-5 py-4 text-xs">{s.planner_name ?? "—"}</td>
                 <td className="px-5 py-4 font-mono text-xs">{s.rough_weight ?? "—"}</td>
-                <td className="px-5 py-4">{s.shape}</td>
+                <td className="px-5 py-4">{s.shape_display ?? s.shape}</td>
                 <td className="px-5 py-4 font-mono text-xs">{s.pol_cts?.toFixed(2)}</td>
                 <td className="px-5 py-4 font-mono text-xs">{s.color}{s.color_range ? ` (${s.color_range})` : ""} • {s.clarity}</td>
                 <td className="px-5 py-4 font-mono text-xs">{s.fluorescence ?? "—"}</td>
