@@ -6,6 +6,27 @@ import { api, formatApiError, API_BASE } from "@/lib/api";
 import { useAuth } from "@/context/AuthContext";
 import { Overline } from "@/components/Reveal";
 
+// What can be printed on the slip (Plan no and a total per plan are always printed)
+const SLIP_OPTIONS = [
+  ["carat", "Size (carat)"],
+  ["rough_weight", "Rough weight"],
+  ["shape", "Shape"],
+  ["color", "Colour"],
+  ["clarity", "Clarity"],
+  ["fluorescence", "Fluorescence"],
+  ["cut", "Cut"],
+  ["polish", "Polish"],
+  ["symmetry", "Symmetry"],
+  ["rapaport", "Rapaport"],
+  ["discount", "Discount %"],
+  ["gross", "Gross value"],
+  ["net", "Net value (total)"],
+];
+const SLIP_DEFAULT = [
+  "carat", "rough_weight", "color", "clarity", "fluorescence",
+  "cut", "polish", "symmetry", "discount", "net",
+];
+
 export default function PricingDashboard() {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
@@ -18,6 +39,25 @@ export default function PricingDashboard() {
   const [items, setItems] = useState([]);
   const [discounts, setDiscounts] = useState({});
   const [saving, setSaving] = useState({});
+
+  // print slip options (remembered in this browser)
+  const [showSlip, setShowSlip] = useState(false);
+  const [slipPaper, setSlipPaper] = useState(() => {
+    try {
+      return localStorage.getItem("slipPaper") || "a5";
+    } catch (e) {
+      return "a5";
+    }
+  });
+  const [slipFields, setSlipFields] = useState(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem("slipFields"));
+      if (Array.isArray(saved) && saved.length) return saved;
+    } catch (e) {
+      /* ignore */
+    }
+    return SLIP_DEFAULT;
+  });
 
   const handleLogout = async () => {
     await logout();
@@ -144,6 +184,99 @@ export default function PricingDashboard() {
     loadPackets(); // refresh counts in case anything changed
   };
 
+  // ---- print slip helpers ----
+  const toggleSlipField = (key) => {
+    setSlipFields((cur) => {
+      const next = cur.includes(key) ? cur.filter((k) => k !== key) : [...cur, key];
+      try {
+        localStorage.setItem("slipFields", JSON.stringify(next));
+      } catch (e) {
+        /* ignore */
+      }
+      return next;
+    });
+  };
+
+  const changeSlipPaper = (value) => {
+    setSlipPaper(value);
+    try {
+      localStorage.setItem("slipPaper", value);
+    } catch (e) {
+      /* ignore */
+    }
+  };
+
+  const slipUrl = (packetNo) => {
+    const params = new URLSearchParams();
+    if (packetNo) params.set("packet_no", packetNo);
+    params.set("fields", slipFields.join(","));
+    params.set("paper", slipPaper);
+    return `${API_BASE}/pricing/quote-stones/export-print?${params.toString()}`;
+  };
+
+  const SlipPanel = showSlip ? (
+    <div className="mt-6 border border-white/10 bg-[#0C1E30] p-6" data-testid="slip-options">
+      <p className="font-mono text-[11px] uppercase tracking-[0.25em] text-gold">What to print on the slip</p>
+      <p className="mt-2 text-xs text-zinc-500">
+        Plan no is always printed, with a total row for each plan. Tick what else you want.
+      </p>
+      <div className="mt-5 grid gap-x-8 gap-y-3 sm:grid-cols-2 lg:grid-cols-4">
+        {SLIP_OPTIONS.map(([key, label]) => (
+          <label
+            key={key}
+            className="flex items-center gap-2 font-mono text-xs uppercase tracking-[0.1em] text-zinc-300"
+          >
+            <input
+              type="checkbox"
+              checked={slipFields.includes(key)}
+              onChange={() => toggleSlipField(key)}
+              data-testid={`slip-field-${key}`}
+            />
+            {label}
+          </label>
+        ))}
+      </div>
+      <div className="mt-6 flex flex-wrap items-center gap-6">
+        <label className="flex items-center gap-3 font-mono text-xs uppercase tracking-[0.1em] text-zinc-300">
+          Paper
+          <select
+            value={slipPaper}
+            onChange={(e) => changeSlipPaper(e.target.value)}
+            data-testid="slip-paper-select"
+            className="border-b border-white/20 bg-transparent py-1 text-sm text-white focus:border-gold focus:outline-none [&>option]:bg-black"
+          >
+            <option value="a4">A4 (normal)</option>
+            <option value="a5">A5 (small)</option>
+            <option value="a6">A6 (tiny)</option>
+          </select>
+        </label>
+        <button
+          onClick={() => {
+            setSlipFields(SLIP_DEFAULT);
+            try {
+              localStorage.setItem("slipFields", JSON.stringify(SLIP_DEFAULT));
+            } catch (e) {
+              /* ignore */
+            }
+          }}
+          className="font-mono text-[10px] uppercase tracking-[0.2em] text-zinc-400 hover:text-gold"
+        >
+          Reset
+        </button>
+        <a
+          href={slipUrl(selectedPacket)}
+          target="_blank"
+          rel="noopener noreferrer"
+          data-testid="slip-download"
+          className="flex items-center gap-2 border border-gold px-6 py-2 font-mono text-[11px] uppercase tracking-[0.25em] text-gold transition-colors hover:bg-gold hover:text-black"
+        >
+          <Printer className="h-4 w-4" strokeWidth={1.5} />
+          {selectedPacket ? "Download slip" : "Download all slips"}
+        </a>
+      </div>
+    </div>
+  ) : null;
+
   // Search on the packet list: type a rough name (CS) to list its packets.
   // An exact rough name shows only that rough name; otherwise it matches any
   // part of the rough name or packet number (so "CS-" shows CS-1, CS-2 ...).
@@ -182,18 +315,18 @@ export default function PricingDashboard() {
             </p>
           </div>
           <div className="flex items-center gap-4">
-            <a
-              href={`${API_BASE}/pricing/quote-stones/export-print`}
-              target="_blank"
-              rel="noopener noreferrer"
+            <button
+              onClick={() => setShowSlip((v) => !v)}
               data-testid="pricing-print-all-button"
               className="flex items-center gap-2 border border-white/30 px-6 py-2 font-mono text-[11px] uppercase tracking-[0.25em] text-zinc-300 transition-colors hover:border-gold hover:text-gold"
             >
               <Printer className="h-4 w-4" strokeWidth={1.5} /> Print all slips
-            </a>
+            </button>
             {LogoutButton}
           </div>
         </div>
+
+        {SlipPanel}
 
         <div className="mt-10 flex items-center gap-4">
           <input
@@ -311,17 +444,17 @@ export default function PricingDashboard() {
           >
             <Download className="h-4 w-4" strokeWidth={1.5} /> Export Excel
           </a>
-          <a
-            href={`${API_BASE}/pricing/quote-stones/export-print?packet_no=${encodeURIComponent(selectedPacket)}`}
-            target="_blank"
-            rel="noopener noreferrer"
+          <button
+            onClick={() => setShowSlip((v) => !v)}
             data-testid="pricing-print-button"
             className="flex items-center gap-2 border border-white/30 px-6 py-3 font-mono text-[11px] uppercase tracking-[0.25em] text-zinc-300 transition-colors hover:border-gold hover:text-gold active:scale-95"
           >
             <Printer className="h-4 w-4" strokeWidth={1.5} /> Print Slip
-          </a>
+          </button>
         </div>
       </div>
+
+      {SlipPanel}
 
       {items.length > 0 && (
         <div className="mt-8 flex flex-wrap items-center gap-3" data-testid="plan-chips">
