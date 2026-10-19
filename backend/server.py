@@ -1648,6 +1648,23 @@ async def attach_user_names(items: list) -> list:
     return items
 
 
+def plan_scenarios(block: list) -> list:
+    """One entry per colour option of a plan group: (label, stones in that total).
+    Single-colour stones are in every option; a range stone contributes its
+    first colour row to option 1 and its second colour row to option 2."""
+    singles = [s for s in block if not s.get("color_range")]
+    ranges = [s for s in block if s.get("color_range")]
+    if not ranges:
+        return [("", block)]
+    max_idx = max((s.get("range_index") or 0) for s in ranges)
+    options = []
+    for k in range(max_idx + 1):
+        chosen = [s for s in ranges if (s.get("range_index") or 0) == k]
+        colours = sorted({s.get("color") for s in chosen if s.get("color")})
+        options.append((" / ".join(colours), singles + chosen))
+    return options
+
+
 def _row_ranges(letter: str, rows: list) -> str:
     """[2,3,4,7] -> 'D2:D4,D7'  (keeps the SUM formula short)"""
     parts, start, prev = [], None, None
@@ -1719,35 +1736,37 @@ async def export_quote_stones_excel(packet_no: Optional[str] = None, user: dict 
     def group_key(s):
         return (str(s.get("packet_no", "")), plan_group_of(s.get("plan_no", "")))
 
-    # One block per (packet, plan group): its stone rows, then a TOTAL row.
+    # One block per (packet, plan group): its stone rows, then a TOTAL row for
+    # every colour option (D, E ...). Totals are live formulas.
     for (pkt, _grp), block in groupby(items, key=group_key):
         block = list(block)
-        counted_rows = []
+        row_of = {}
         for stone in block:
-            r = write_stone_row(stone)
-            # A colour-range stone (e.g. D-E) has two rows but is ONE stone,
-            # so only its first colour row is counted in the total.
-            if (stone.get("range_index") or 0) == 0:
-                counted_rows.append(r)
+            row_of[stone["quote_stone_id"]] = write_stone_row(stone)
 
         plans = sorted({str(s.get("plan_no", "")) for s in block}, key=lambda p: p.upper())
-        total_values = [None] * len(GT7_COLUMNS)
-        total_values[0] = pkt
-        total_values[1] = f"TOTAL ({', '.join(plans)})"
-        ws.append(total_values)
-        tr = ws.max_row
-        for letter in (CTS, GROSS, LAB, NET):
-            ws[f"{letter}{tr}"] = f"=SUM({_row_ranges(letter, counted_rows)})"
-        for letter in (GROSS, LAB, NET):
-            ws[f"{letter}{tr}"].number_format = money
-        for cell in ws[tr]:
-            cell.font = bold
-            cell.fill = total_fill
+        for label, rows in plan_scenarios(block):
+            counted_rows = sorted(row_of[s["quote_stone_id"]] for s in rows)
+            name = f"TOTAL ({', '.join(plans)})"
+            if label:
+                name += f" · {label}"
+            total_values = [None] * len(GT7_COLUMNS)
+            total_values[0] = pkt
+            total_values[1] = name
+            ws.append(total_values)
+            tr = ws.max_row
+            for letter in (CTS, GROSS, LAB, NET):
+                ws[f"{letter}{tr}"] = f"=SUM({_row_ranges(letter, counted_rows)})"
+            for letter in (GROSS, LAB, NET):
+                ws[f"{letter}{tr}"].number_format = money
+            for cell in ws[tr]:
+                cell.font = bold
+                cell.fill = total_fill
         ws.append([])  # blank spacer row between groups
 
     for col_idx in range(1, len(GT7_COLUMNS) + 1):
         ws.column_dimensions[get_column_letter(col_idx)].width = 14
-    ws.column_dimensions["B"].width = 24  # holds the TOTAL label
+    ws.column_dimensions["B"].width = 32  # holds the TOTAL label
 
     buf = io.BytesIO()
     wb.save(buf)
@@ -1783,12 +1802,10 @@ SLIP_DEFAULT = ["carat", "rough_weight", "color", "clarity", "fluorescence",
 SLIP_TOTALS = ("carat", "gross", "net")   # columns that get a total per plan
 
 # Slip sizes. paper = Excel paper code (9 = A4, 11 = A5, 70 = A6)
-# font = text size, title = heading size, col = column width, plan = first
-# column width, row = row height (None = automatic), margin = page margin (inches)
 SLIP_SIZES = {
-    "a4": {"paper": 9,  "font": 11, "title": 16, "col": 11,  "plan": 22, "row": None, "margin": 0.4},
-    "a5": {"paper": 11, "font": 9,  "title": 13, "col": 8.5, "plan": 14, "row": 13,   "margin": 0.3},
-    "a6": {"paper": 70, "font": 8,  "title": 11, "col": 7,   "plan": 11, "row": 11.5, "margin": 0.2},
+    "a4": {"paper": 9,  "font": 11, "title": 16, "col": 11,  "plan": 24, "row": None, "margin": 0.4},
+    "a5": {"paper": 11, "font": 9,  "title": 13, "col": 8.5, "plan": 15, "row": 13,   "margin": 0.3},
+    "a6": {"paper": 70, "font": 8,  "title": 11, "col": 7,   "plan": 13, "row": 11.5, "margin": 0.2},
 }
 
 
@@ -1865,9 +1882,6 @@ async def export_print_slip(
         for grp, block in groupby(pkt_items, key=lambda s: plan_group_of(s.get("plan_no", ""))):
             block = list(block)
             is_final = any(s.get("is_final") for s in block)
-            # A colour-range stone (e.g. D-E) has two rows but is ONE stone,
-            # so only its first colour row is counted in the totals.
-            counted = [s for s in block if (s.get("range_index") or 0) == 0]
             block_start = r + 1
 
             for s in block:
@@ -1886,31 +1900,34 @@ async def export_print_slip(
                 if size["row"]:
                     ws.row_dimensions[r].height = size["row"]
 
-            # TOTAL row for this plan
-            r += 1
-            label = f"Total {grp}"
-            if is_final:
-                label += " ★" if small else "  ★ FINAL"
-            ws.cell(row=r, column=1, value=label)
-            for i, (key, _heading, field, fmt) in enumerate(cols, start=2):
-                if key not in SLIP_TOTALS:
-                    continue
-                vals = [s.get(field) for s in counted]
-                if any(v is None for v in vals):
-                    total = "Pending"
-                else:
-                    total = round(sum(vals), 3 if key == "carat" else 2)
-                cell = ws.cell(row=r, column=i, value=total)
-                if fmt and total != "Pending":
-                    cell.number_format = fmt
-            for i in range(1, ncols + 1):
-                cell = ws.cell(row=r, column=i)
-                cell.border = box
-                cell.alignment = center
-                cell.font = bold_font
-                cell.fill = total_fill
-            if size["row"]:
-                ws.row_dimensions[r].height = size["row"]
+            # one TOTAL row for every colour option of this plan (D, E ...)
+            for label, rows in plan_scenarios(block):
+                r += 1
+                name = f"Total {grp}"
+                if label:
+                    name += f" ({label.replace(' / ', '/')})"
+                if is_final:
+                    name += " ★" if small else "  ★ FINAL"
+                ws.cell(row=r, column=1, value=name)
+                for i, (key, _heading, field, fmt) in enumerate(cols, start=2):
+                    if key not in SLIP_TOTALS:
+                        continue
+                    vals = [s.get(field) for s in rows]
+                    if any(v is None for v in vals):
+                        total = "Pending"
+                    else:
+                        total = round(sum(vals), 3 if key == "carat" else 2)
+                    cell = ws.cell(row=r, column=i, value=total)
+                    if fmt and total != "Pending":
+                        cell.number_format = fmt
+                for i in range(1, ncols + 1):
+                    cell = ws.cell(row=r, column=i)
+                    cell.border = box
+                    cell.alignment = center
+                    cell.font = bold_font
+                    cell.fill = total_fill
+                if size["row"]:
+                    ws.row_dimensions[r].height = size["row"]
 
             # the final plan is shaded green
             if is_final:
