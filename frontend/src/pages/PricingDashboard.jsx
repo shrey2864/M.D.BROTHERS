@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 import { Download, ChevronLeft, Printer } from "lucide-react";
@@ -290,6 +290,50 @@ export default function PricingDashboard() {
         return rough.includes(q) || String(p.packet_no).toLowerCase().includes(q);
       });
 
+  // ---- totals: one block per plan (Plan 1 + Plan 1A together), with a separate
+  // total for each colour option. A colour-range stone (D-E) has one row per
+  // colour: option 1 counts the D rows, option 2 the E rows. Single-colour
+  // stones count in every option.
+  const planGroupOf = (planNo) => {
+    const m = String(planNo || "").match(/\d+/);
+    return m ? String(parseInt(m[0], 10)) : String(planNo || "").trim().toUpperCase();
+  };
+  const sumOf = (rows, key) => rows.reduce((a, s) => a + (Number(s[key]) || 0), 0);
+
+  const groups = (() => {
+    const map = new Map();
+    items.forEach((s) => {
+      const k = planGroupOf(s.plan_no);
+      if (!map.has(k)) map.set(k, []);
+      map.get(k).push(s);
+    });
+    return [...map.entries()].map(([key, stones]) => {
+      const singles = stones.filter((s) => !s.color_range);
+      const ranges = stones.filter((s) => s.color_range);
+      const maxIdx = ranges.length ? Math.max(...ranges.map((s) => s.range_index ?? 0)) : -1;
+      const options = ranges.length ? Array.from({ length: maxIdx + 1 }, (_, k) => k) : [null];
+      const totals = options.map((k) => {
+        const chosen = k === null ? [] : ranges.filter((s) => (s.range_index ?? 0) === k);
+        const rows = [...singles, ...chosen];
+        return {
+          label: [...new Set(chosen.map((s) => s.color))].join("/"),
+          carat: sumOf(rows, "pol_cts"),
+          gross: sumOf(rows, "gross_value"),
+          labour: sumOf(rows, "labour"),
+          net: sumOf(rows, "net_value"),
+          pending: rows.some((s) => s.gross_value == null),
+        };
+      });
+      return {
+        key,
+        stones,
+        totals,
+        plans: [...new Set(stones.map((s) => s.plan_no))],
+        isFinal: stones.some((s) => s.is_final),
+      };
+    });
+  })();
+
   const LogoutButton = (
     <button
       onClick={handleLogout}
@@ -521,7 +565,9 @@ export default function PricingDashboard() {
             </tr>
           </thead>
           <tbody>
-            {items.map((s) => (
+            {groups.map((g) => (
+              <Fragment key={g.key}>
+            {g.stones.map((s) => (
               <tr
                 key={s.quote_stone_id}
                 className={`border-b border-white/5 text-zinc-300 ${s.is_final ? "bg-emerald-500/10" : ""}`}
@@ -592,6 +638,29 @@ export default function PricingDashboard() {
                   </button>
                 </td>
               </tr>
+            ))}
+            {g.totals.map((t, i) => (
+              <tr
+                key={`${g.key}-total-${i}`}
+                className={`border-b border-white/10 font-mono text-xs ${
+                  g.isFinal ? "bg-emerald-500/20 text-emerald-200" : "bg-white/5 text-zinc-200"
+                }`}
+                data-testid={`pricing-total-${g.key}-${i}`}
+              >
+                <td colSpan={5} className="px-5 py-3 uppercase tracking-[0.15em]">
+                  Total · Plan {g.plans.join(" + ")}
+                  {t.label ? ` · colour ${t.label}` : ""}
+                  {g.isFinal ? " ★ FINAL" : ""}
+                </td>
+                <td className="px-5 py-3">{t.carat.toFixed(2)}</td>
+                <td colSpan={7} className="px-5 py-3"></td>
+                <td className="px-5 py-3 text-gold">{t.pending ? "Pending" : fmt(t.gross)}</td>
+                <td className="px-5 py-3">{t.pending ? "—" : fmt(t.labour)}</td>
+                <td className="px-5 py-3 text-emerald-400">{t.pending ? "Pending" : fmt(t.net)}</td>
+                <td colSpan={4} className="px-5 py-3"></td>
+              </tr>
+            ))}
+              </Fragment>
             ))}
             {items.length === 0 && (
               <tr>
