@@ -1760,15 +1760,55 @@ async def export_quote_stones_excel(packet_no: Optional[str] = None, user: dict 
     )
 
 
-# ---------------- Print slip: ONLY Plan and Value, one sheet per packet ----------------
-# Which value goes on the slip. "net_value" or "gross_value".
-PRINT_VALUE_FIELD = "net_value"
+# ---------------- Print slip: you choose what is printed ----------------
+# (key sent from the website, heading on the slip, stone field, Excel number format)
+SLIP_FIELDS = [
+    ("carat", "Carat", "pol_cts", "0.00"),
+    ("rough_weight", "Rough", "rough_weight", "0.000"),
+    ("shape", "Shape", "shape_display", None),
+    ("color", "Colour", "color", None),
+    ("clarity", "Clarity", "clarity", None),
+    ("fluorescence", "Fls", "fluorescence", None),
+    ("cut", "Cut", "cut", None),
+    ("polish", "Polish", "polish", None),
+    ("symmetry", "Symm", "symmetry", None),
+    ("rapaport", "Rapaport", "rapaport_rate", "#,##0"),
+    ("discount", "Disc %", "discount_percent", "0.0"),
+    ("gross", "Gross", "gross_value", "#,##0.00"),
+    ("net", "Total", "net_value", "#,##0.00"),
+]
+# used when the website does not say what to print
+SLIP_DEFAULT = ["carat", "rough_weight", "color", "clarity", "fluorescence",
+                "cut", "polish", "symmetry", "discount", "net"]
+SLIP_TOTALS = ("carat", "gross", "net")   # columns that get a total per plan
+
+# Slip sizes. paper = Excel paper code (9 = A4, 11 = A5, 70 = A6)
+# font = text size, title = heading size, col = column width, plan = first
+# column width, row = row height (None = automatic), margin = page margin (inches)
+SLIP_SIZES = {
+    "a4": {"paper": 9,  "font": 11, "title": 16, "col": 11,  "plan": 22, "row": None, "margin": 0.4},
+    "a5": {"paper": 11, "font": 9,  "title": 13, "col": 8.5, "plan": 14, "row": 13,   "margin": 0.3},
+    "a6": {"paper": 70, "font": 8,  "title": 11, "col": 7,   "plan": 11, "row": 11.5, "margin": 0.2},
+}
 
 
 @api_router.get("/pricing/quote-stones/export-print")
-async def export_print_slip(packet_no: Optional[str] = None, user: dict = Depends(get_current_user)):
+async def export_print_slip(
+    packet_no: Optional[str] = None,
+    fields: Optional[str] = None,
+    paper: str = "a4",
+    user: dict = Depends(get_current_user),
+):
     if not user_can_export_excel(user):
         raise HTTPException(status_code=403, detail="Not permitted to export")
+
+    size_key = paper.lower() if paper.lower() in SLIP_SIZES else "a4"
+    size = SLIP_SIZES[size_key]
+    small = size_key != "a4"
+
+    wanted = [f.strip() for f in (fields or "").split(",") if f.strip()] or SLIP_DEFAULT
+    cols = [c for c in SLIP_FIELDS if c[0] in wanted] or [c for c in SLIP_FIELDS if c[0] in SLIP_DEFAULT]
+
     query = {"packet_no": packet_no} if packet_no else {}
     items = await db.quote_stones.find(query, {"_id": 0}).to_list(5000)
     if not items:
@@ -1784,7 +1824,14 @@ async def export_print_slip(packet_no: Optional[str] = None, user: dict = Depend
 
     thin = Side(style="thin", color="000000")
     box = Border(left=thin, right=thin, top=thin, bottom=thin)
-    final_fill = PatternFill("solid", fgColor="C6E0B4")
+    center = Alignment(horizontal="center", vertical="center")
+    final_fill = PatternFill("solid", fgColor="C6E0B4")   # green = final plan
+    total_fill = PatternFill("solid", fgColor="FFF2CC")
+    body_font = Font(size=size["font"])
+    bold_font = Font(size=size["font"], bold=True)
+
+    ncols = 1 + len(cols)
+    last_col = get_column_letter(ncols)
 
     wb = Workbook()
     first = True
@@ -1800,55 +1847,97 @@ async def export_print_slip(packet_no: Optional[str] = None, user: dict = Depend
             n += 1
         ws.title = title
 
-        ws.merge_cells("A1:B1")
+        ws.merge_cells(f"A1:{last_col}1")
         ws["A1"] = f"Packet {pkt}"
-        ws["A1"].font = Font(size=16, bold=True)
+        ws["A1"].font = Font(size=size["title"], bold=True)
         ws["A1"].alignment = Alignment(horizontal="center")
 
-        for col, text in (("A", "Plan"), ("B", "Value ($)")):
-            c = ws[f"{col}3"]
-            c.value = text
-            c.font = Font(size=13, bold=True)
+        for i, heading in enumerate(["Plan"] + [c[1] for c in cols], start=1):
+            c = ws.cell(row=3, column=i, value=heading)
+            c.font = bold_font
             c.border = box
-            c.alignment = Alignment(horizontal="center")
+            c.alignment = center
+        if size["row"]:
+            ws.row_dimensions[3].height = size["row"]
 
         r = 3
-        # One row per plan group: Plan 1 + Plan 1A together, Plan 2 separate.
+        # one block per plan group: Plan 1 + Plan 1A together, Plan 2 separate
         for grp, block in groupby(pkt_items, key=lambda s: plan_group_of(s.get("plan_no", ""))):
             block = list(block)
-            # A colour-range stone has two rows but is ONE stone: count the first only.
-            counted = [s for s in block if (s.get("range_index") or 0) == 0]
-            vals = [s.get(PRINT_VALUE_FIELD) for s in counted]
-            value = None if any(v is None for v in vals) else round(sum(vals), 2)
             is_final = any(s.get("is_final") for s in block)
+            # A colour-range stone (e.g. D-E) has two rows but is ONE stone,
+            # so only its first colour row is counted in the totals.
+            counted = [s for s in block if (s.get("range_index") or 0) == 0]
+            block_start = r + 1
 
+            for s in block:
+                r += 1
+                ws.cell(row=r, column=1, value=s.get("plan_no"))
+                for i, (_key, _heading, field, fmt) in enumerate(cols, start=2):
+                    v = s.get(field)
+                    cell = ws.cell(row=r, column=i, value=v if v is not None else "—")
+                    if fmt and v is not None:
+                        cell.number_format = fmt
+                for i in range(1, ncols + 1):
+                    cell = ws.cell(row=r, column=i)
+                    cell.border = box
+                    cell.alignment = center
+                    cell.font = body_font
+                if size["row"]:
+                    ws.row_dimensions[r].height = size["row"]
+
+            # TOTAL row for this plan
             r += 1
-            a = ws.cell(row=r, column=1, value=f"Plan {grp}" + ("  ★ FINAL" if is_final else ""))
-            b = ws.cell(row=r, column=2, value=value if value is not None else "Pending")
-            a.font = Font(size=13, bold=True)
-            b.font = Font(size=13)
-            a.border = box
-            b.border = box
-            a.alignment = Alignment(horizontal="center")
-            b.alignment = Alignment(horizontal="right")
+            label = f"Total {grp}"
             if is_final:
-                a.fill = final_fill
-                b.fill = final_fill
-            if value is not None:
-                b.number_format = "#,##0.00"
+                label += " ★" if small else "  ★ FINAL"
+            ws.cell(row=r, column=1, value=label)
+            for i, (key, _heading, field, fmt) in enumerate(cols, start=2):
+                if key not in SLIP_TOTALS:
+                    continue
+                vals = [s.get(field) for s in counted]
+                if any(v is None for v in vals):
+                    total = "Pending"
+                else:
+                    total = round(sum(vals), 3 if key == "carat" else 2)
+                cell = ws.cell(row=r, column=i, value=total)
+                if fmt and total != "Pending":
+                    cell.number_format = fmt
+            for i in range(1, ncols + 1):
+                cell = ws.cell(row=r, column=i)
+                cell.border = box
+                cell.alignment = center
+                cell.font = bold_font
+                cell.fill = total_fill
+            if size["row"]:
+                ws.row_dimensions[r].height = size["row"]
 
-        ws.column_dimensions["A"].width = 20
-        ws.column_dimensions["B"].width = 18
+            # the final plan is shaded green
+            if is_final:
+                for rr in range(block_start, r + 1):
+                    for i in range(1, ncols + 1):
+                        ws.cell(row=rr, column=i).fill = final_fill
 
-        # print setup: one page, centred, small margins
-        ws.print_area = f"A1:B{r}"
-        ws.page_setup.orientation = "portrait"
+        for i in range(1, ncols + 1):
+            ws.column_dimensions[get_column_letter(i)].width = size["col"]
+        ws.column_dimensions["A"].width = size["plan"]
+        for i, (key, _h, _f, _fmt) in enumerate(cols, start=2):
+            if key == "shape":
+                ws.column_dimensions[get_column_letter(i)].width = size["col"] + 5
+            if key in ("gross", "net", "rapaport"):
+                ws.column_dimensions[get_column_letter(i)].width = size["col"] + 2
+
+        # print setup: fits the page width, header repeats, centred
+        ws.print_area = f"A1:{last_col}{r}"
+        ws.print_title_rows = "3:3"
+        ws.page_setup.orientation = "landscape" if ncols > 7 else "portrait"
+        ws.page_setup.paperSize = size["paper"]
         ws.page_setup.fitToWidth = 1
-        ws.page_setup.fitToHeight = 1
+        ws.page_setup.fitToHeight = 0
         ws.sheet_properties.pageSetUpPr = PageSetupProperties(fitToPage=True)
         ws.print_options.horizontalCentered = True
-        ws.page_margins.left = ws.page_margins.right = 0.5
-        ws.page_margins.top = ws.page_margins.bottom = 0.5
+        ws.page_margins.left = ws.page_margins.right = size["margin"]
+        ws.page_margins.top = ws.page_margins.bottom = size["margin"] + 0.1
 
     buf = io.BytesIO()
     wb.save(buf)
@@ -1859,8 +1948,6 @@ async def export_print_slip(packet_no: Optional[str] = None, user: dict = Depend
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
-
-
 # =====================================================================
 # JEWELLERY SECTION
 # =====================================================================
