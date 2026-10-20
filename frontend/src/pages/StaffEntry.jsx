@@ -37,6 +37,9 @@ const GRADES = ["EX", "VG", "GD"];
 const FLUORESCENCE = ["NON", "FNT", "MED", "STG"];
 const LABS = ["GIA", "IGI", "HRD"];
 
+// The planners - fixed names, chosen from a list (not typed)
+const PLANNERS = ["RONAKBHAI", "DIXITBHAI", "PINKESHBHAI"];
+
 // Single colours, then two-colour ranges (a range makes one row per colour).
 const SINGLE_COLORS = ["D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N"];
 const COLOR_RANGES = ["D-E", "E-F", "F-G", "G-H", "H-I", "I-J", "J-K", "K-L", "L-M", "M-N"];
@@ -226,7 +229,13 @@ export default function StaffEntry() {
             {roughNames.map((n) => <option key={n} value={n} />)}
           </datalist>
           <input required placeholder="Packet No (100)" value={form.packet_no} onChange={(e) => set("packet_no", e.target.value)} className="lux-input" data-testid="staff-packet-input" />
-          <input required placeholder="Planner name" value={form.planner_name} onChange={(e) => set("planner_name", e.target.value)} className="lux-input" data-testid="staff-planner-input" />
+          <label className="block">
+            <span className={labelClass}>Planner</span>
+            <select required value={form.planner_name} onChange={(e) => set("planner_name", e.target.value)} data-testid="staff-planner-input" className={selectClass}>
+              <option value="" disabled>Select planner</option>
+              {PLANNERS.map((p) => <option key={p} value={p}>{p}</option>)}
+            </select>
+          </label>
           <input required type="number" step="0.001" min="0.001" placeholder="Rough weight" value={form.rough_weight} onChange={(e) => set("rough_weight", e.target.value)} className="lux-input" data-testid="staff-rough-weight-input" />
           <label className="block">
             <span className={labelClass}>Fluorescence</span>
