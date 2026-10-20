@@ -1623,7 +1623,7 @@ async def admin_delete_portal_user(user_id: str, user: dict = Depends(require_ad
 GT7_COLUMNS = [
     ("packet_no", "PacketNo"), ("rough_name", "RoughName"), ("plan_no", "PlanNo"),
     ("final_flag", "Final"),
-    ("planner_name", "Planner"), ("rough_weight", "RoughWt"), ("shape_display", "Shape"),
+    ("planner_name", "Planner"), ("shape_display", "Shape"),
     ("pol_cts", "PolCts"), ("color", "RefColor"), ("color_range", "ColourRange"),
     ("clarity", "RefPurity"),
     ("cut", "SarinCut"), ("symmetry", "Symm"), ("fluorescence", "Fls"),
@@ -1648,21 +1648,51 @@ async def attach_user_names(items: list) -> list:
     return items
 
 
-def plan_scenarios(block: list) -> list:
-    """One entry per colour option of a plan group: (label, stones in that total).
-    Single-colour stones are in every option; a range stone contributes its
-    first colour row to option 1 and its second colour row to option 2."""
+def option_index(stone: dict) -> int:
+    """-1 for a single-colour stone; 0 / 1 for the first / second colour row of a range stone."""
+    return (stone.get("range_index") or 0) if stone.get("color_range") else -1
+
+
+def stone_sort_key(stone: dict):
+    # packet, plan group (1 + 1A together), then colour option, then plan name
+    return (
+        str(stone.get("packet_no", "")),
+        plan_group_sort_key(stone),
+        option_index(stone),
+        str(stone.get("plan_no", "")).upper(),
+        stone.get("created_at", ""),
+    )
+
+
+def plan_sections(block: list) -> list:
+    """Split one plan group into sections; a section with total_of set ends in a TOTAL row.
+    No colour range -> one section: all rows, one total.
+    With ranges     -> single-colour rows first (no total of their own), then one
+                       section per colour option: its rows, then a total made of the
+                       single-colour stones plus that option's rows."""
     singles = [s for s in block if not s.get("color_range")]
     ranges = [s for s in block if s.get("color_range")]
     if not ranges:
-        return [("", block)]
+        return [{"rows": block, "total_of": block, "label": ""}]
+    sections = []
+    if singles:
+        sections.append({"rows": singles, "total_of": None, "label": ""})
     max_idx = max((s.get("range_index") or 0) for s in ranges)
-    options = []
     for k in range(max_idx + 1):
         chosen = [s for s in ranges if (s.get("range_index") or 0) == k]
+        if not chosen:
+            continue
         colours = sorted({s.get("color") for s in chosen if s.get("color")})
-        options.append((" / ".join(colours), singles + chosen))
-    return options
+        sections.append({"rows": chosen, "total_of": singles + chosen, "label": " / ".join(colours)})
+    return sections
+
+
+def packet_rough_weight(stones: list):
+    """The rough weight is the same for the whole packet: take the first one entered."""
+    for s in stones:
+        if s.get("rough_weight") is not None:
+            return s["rough_weight"]
+    return None
 
 
 def _row_ranges(letter: str, rows: list) -> str:
@@ -1681,6 +1711,15 @@ def _row_ranges(letter: str, rows: list) -> str:
     return ",".join(parts)
 
 
+def _sheet_title(wb, ws, pkt: str) -> str:
+    title = re.sub(r"[\[\]:*?/\\]", "-", pkt)[:31] or "Packet"
+    base, n = title, 2
+    while title in wb.sheetnames and wb[title] is not ws:
+        title = f"{base[:28]}-{n}"
+        n += 1
+    return title
+
+
 @api_router.get("/pricing/quote-stones/export")
 async def export_quote_stones_excel(packet_no: Optional[str] = None, user: dict = Depends(get_current_user)):
     if not user_can_export_excel(user):
@@ -1689,20 +1728,7 @@ async def export_quote_stones_excel(packet_no: Optional[str] = None, user: dict 
     items = await db.quote_stones.find(query, {"_id": 0}).to_list(5000)
     items = [with_computed_pricing(i) for i in items]
     await attach_user_names(items)
-    items.sort(key=lambda s: (
-        str(s.get("packet_no", "")),
-        plan_group_sort_key(s),
-        str(s.get("plan_no", "")).upper(),
-        s.get("created_at", ""),
-        s.get("range_index") or 0,
-    ))
-
-    wb = Workbook()
-    ws = wb.active
-    ws.title = "Quote"
-    ws.append([header for _, header in GT7_COLUMNS])
-    for cell in ws[1]:
-        cell.font = Font(bold=True)
+    items.sort(key=stone_sort_key)
 
     bold = Font(bold=True)
     total_fill = PatternFill("solid", fgColor="FFF2CC")
@@ -1715,7 +1741,7 @@ async def export_quote_stones_excel(packet_no: Optional[str] = None, user: dict 
     CTS, RATE, DISC = L["pol_cts"], L["rapaport_rate"], L["discount_percent"]
     GROSS, LAB, NET = L["gross_value"], L["labour"], L["net_value"]
 
-    def write_stone_row(stone: dict) -> int:
+    def write_stone_row(ws, stone: dict) -> int:
         ws.append([stone.get(key) for key, _ in GT7_COLUMNS])
         r = ws.max_row
         if stone.get("is_final"):
@@ -1733,40 +1759,60 @@ async def export_quote_stones_excel(packet_no: Optional[str] = None, user: dict 
         ws[f"{DISC}{r}"].fill = input_fill
         return r
 
-    def group_key(s):
-        return (str(s.get("packet_no", "")), plan_group_of(s.get("plan_no", "")))
+    wb = Workbook()
+    first = True
+    # one sheet per packet
+    for pkt, pkt_items in groupby(items, key=lambda s: str(s.get("packet_no", ""))):
+        pkt_items = list(pkt_items)
+        ws = wb.active if first else wb.create_sheet()
+        first = False
+        ws.title = _sheet_title(wb, ws, pkt)
 
-    # One block per (packet, plan group): its stone rows, then a TOTAL row for
-    # every colour option (D, E ...). Totals are live formulas.
-    for (pkt, _grp), block in groupby(items, key=group_key):
-        block = list(block)
-        row_of = {}
-        for stone in block:
-            row_of[stone["quote_stone_id"]] = write_stone_row(stone)
+        # top line: ESTIMATE, packet number and rough weight (same for the whole packet)
+        rough = packet_rough_weight(pkt_items)
+        banner = f"ESTIMATE      Packet No: {pkt}"
+        if rough is not None:
+            banner += f"      Rough Weight: {rough}"
+        ws["A1"] = banner
+        ws["A1"].font = Font(size=14, bold=True)
+        ws.append([])                                   # row 2 stays empty
+        ws.append([header for _, header in GT7_COLUMNS])  # row 3 = column headings
+        for cell in ws[3]:
+            cell.font = bold
+        ws.freeze_panes = "A4"
 
-        plans = sorted({str(s.get("plan_no", "")) for s in block}, key=lambda p: p.upper())
-        for label, rows in plan_scenarios(block):
-            counted_rows = sorted(row_of[s["quote_stone_id"]] for s in rows)
-            name = f"TOTAL ({', '.join(plans)})"
-            if label:
-                name += f" · {label}"
-            total_values = [None] * len(GT7_COLUMNS)
-            total_values[0] = pkt
-            total_values[1] = name
-            ws.append(total_values)
-            tr = ws.max_row
-            for letter in (CTS, GROSS, LAB, NET):
-                ws[f"{letter}{tr}"] = f"=SUM({_row_ranges(letter, counted_rows)})"
-            for letter in (GROSS, LAB, NET):
-                ws[f"{letter}{tr}"].number_format = money
-            for cell in ws[tr]:
-                cell.font = bold
-                cell.fill = total_fill
-        ws.append([])  # blank spacer row between groups
+        # one block per plan group (Plan 1 + Plan 1A together)
+        for _grp, block in groupby(pkt_items, key=lambda s: plan_group_of(s.get("plan_no", ""))):
+            block = list(block)
+            plans = sorted({str(s.get("plan_no", "")) for s in block}, key=lambda p: p.upper())
+            row_of = {}
+            for sec in plan_sections(block):
+                for stone in sec["rows"]:
+                    row_of[stone["quote_stone_id"]] = write_stone_row(ws, stone)
+                if sec["total_of"] is None:
+                    continue
+                # the colour's total sits directly under that colour's rows
+                counted_rows = sorted(row_of[s["quote_stone_id"]] for s in sec["total_of"])
+                name = f"TOTAL {' + '.join(plans)}"
+                if sec["label"]:
+                    name += f" · colour {sec['label']}"
+                total_values = [None] * len(GT7_COLUMNS)
+                total_values[0] = pkt
+                total_values[1] = name
+                ws.append(total_values)
+                tr = ws.max_row
+                for letter in (CTS, GROSS, LAB, NET):
+                    ws[f"{letter}{tr}"] = f"=SUM({_row_ranges(letter, counted_rows)})"
+                for letter in (GROSS, LAB, NET):
+                    ws[f"{letter}{tr}"].number_format = money
+                for cell in ws[tr]:
+                    cell.font = bold
+                    cell.fill = total_fill
+            ws.append([])  # blank spacer row between plans
 
-    for col_idx in range(1, len(GT7_COLUMNS) + 1):
-        ws.column_dimensions[get_column_letter(col_idx)].width = 14
-    ws.column_dimensions["B"].width = 32  # holds the TOTAL label
+        for col_idx in range(1, len(GT7_COLUMNS) + 1):
+            ws.column_dimensions[get_column_letter(col_idx)].width = 14
+        ws.column_dimensions["B"].width = 34  # holds the TOTAL label
 
     buf = io.BytesIO()
     wb.save(buf)
@@ -1781,9 +1827,9 @@ async def export_quote_stones_excel(packet_no: Optional[str] = None, user: dict 
 
 # ---------------- Print slip: you choose what is printed ----------------
 # (key sent from the website, heading on the slip, stone field, Excel number format)
+# "rough_weight" is not a column: it is printed in the title at the top.
 SLIP_FIELDS = [
     ("carat", "Carat", "pol_cts", "0.00"),
-    ("rough_weight", "Rough", "rough_weight", "0.000"),
     ("shape", "Shape", "shape_display", None),
     ("color", "Colour", "color", None),
     ("clarity", "Clarity", "clarity", None),
@@ -1814,6 +1860,7 @@ async def export_print_slip(
     packet_no: Optional[str] = None,
     fields: Optional[str] = None,
     paper: str = "a4",
+    only_final: bool = False,
     user: dict = Depends(get_current_user),
 ):
     if not user_can_export_excel(user):
@@ -1824,6 +1871,7 @@ async def export_print_slip(
     small = size_key != "a4"
 
     wanted = [f.strip() for f in (fields or "").split(",") if f.strip()] or SLIP_DEFAULT
+    show_rough = "rough_weight" in wanted
     cols = [c for c in SLIP_FIELDS if c[0] in wanted] or [c for c in SLIP_FIELDS if c[0] in SLIP_DEFAULT]
 
     query = {"packet_no": packet_no} if packet_no else {}
@@ -1831,13 +1879,17 @@ async def export_print_slip(
     if not items:
         raise HTTPException(status_code=404, detail="No stones found")
     items = [with_computed_pricing(i) for i in items]
-    items.sort(key=lambda s: (
-        str(s.get("packet_no", "")),
-        plan_group_sort_key(s),
-        str(s.get("plan_no", "")).upper(),
-        s.get("created_at", ""),
-        s.get("range_index") or 0,
-    ))
+    # the rough weight is the same for the whole packet (read before any filtering)
+    rough_of = {}
+    for s in items:
+        pk = str(s.get("packet_no", ""))
+        if pk not in rough_of and s.get("rough_weight") is not None:
+            rough_of[pk] = s["rough_weight"]
+    if only_final:
+        items = [s for s in items if s.get("is_final")]
+        if not items:
+            raise HTTPException(status_code=404, detail="No final plan is marked yet")
+    items.sort(key=stone_sort_key)
 
     thin = Side(style="thin", color="000000")
     box = Border(left=thin, right=thin, top=thin, bottom=thin)
@@ -1856,21 +1908,21 @@ async def export_print_slip(
         pkt_items = list(pkt_items)
         ws = wb.active if first else wb.create_sheet()
         first = False
+        ws.title = _sheet_title(wb, ws, pkt)
 
-        title = re.sub(r"[\[\]:*?/\\]", "-", pkt)[:31] or "Packet"
-        base, n = title, 2
-        while title in wb.sheetnames and wb[title] is not ws:
-            title = f"{base[:28]}-{n}"
-            n += 1
-        ws.title = title
-
+        # title: packet number, rough weight (same for the whole packet), final plan note
+        heading = f"Packet {pkt}"
+        if show_rough and rough_of.get(pkt) is not None:
+            heading += f"   ·   Rough {rough_of[pkt]}"
+        if only_final:
+            heading += "   ·   FINAL PLAN"
         ws.merge_cells(f"A1:{last_col}1")
-        ws["A1"] = f"Packet {pkt}"
+        ws["A1"] = heading
         ws["A1"].font = Font(size=size["title"], bold=True)
         ws["A1"].alignment = Alignment(horizontal="center")
 
-        for i, heading in enumerate(["Plan"] + [c[1] for c in cols], start=1):
-            c = ws.cell(row=3, column=i, value=heading)
+        for i, head in enumerate(["Plan"] + [c[1] for c in cols], start=1):
+            c = ws.cell(row=3, column=i, value=head)
             c.font = bold_font
             c.border = box
             c.alignment = center
@@ -1884,35 +1936,37 @@ async def export_print_slip(
             is_final = any(s.get("is_final") for s in block)
             block_start = r + 1
 
-            for s in block:
-                r += 1
-                ws.cell(row=r, column=1, value=s.get("plan_no"))
-                for i, (_key, _heading, field, fmt) in enumerate(cols, start=2):
-                    v = s.get(field)
-                    cell = ws.cell(row=r, column=i, value=v if v is not None else "—")
-                    if fmt and v is not None:
-                        cell.number_format = fmt
-                for i in range(1, ncols + 1):
-                    cell = ws.cell(row=r, column=i)
-                    cell.border = box
-                    cell.alignment = center
-                    cell.font = body_font
-                if size["row"]:
-                    ws.row_dimensions[r].height = size["row"]
+            for sec in plan_sections(block):
+                for s in sec["rows"]:
+                    r += 1
+                    ws.cell(row=r, column=1, value=s.get("plan_no"))
+                    for i, (_key, _heading, field, fmt) in enumerate(cols, start=2):
+                        v = s.get(field)
+                        cell = ws.cell(row=r, column=i, value=v if v is not None else "—")
+                        if fmt and v is not None:
+                            cell.number_format = fmt
+                    for i in range(1, ncols + 1):
+                        cell = ws.cell(row=r, column=i)
+                        cell.border = box
+                        cell.alignment = center
+                        cell.font = body_font
+                    if size["row"]:
+                        ws.row_dimensions[r].height = size["row"]
 
-            # one TOTAL row for every colour option of this plan (D, E ...)
-            for label, rows in plan_scenarios(block):
+                if sec["total_of"] is None:
+                    continue
+                # this colour's total sits directly under its rows
                 r += 1
                 name = f"Total {grp}"
-                if label:
-                    name += f" ({label.replace(' / ', '/')})"
+                if sec["label"]:
+                    name += f" ({sec['label'].replace(' / ', '/')})"
                 if is_final:
                     name += " ★" if small else "  ★ FINAL"
                 ws.cell(row=r, column=1, value=name)
                 for i, (key, _heading, field, fmt) in enumerate(cols, start=2):
                     if key not in SLIP_TOTALS:
                         continue
-                    vals = [s.get(field) for s in rows]
+                    vals = [s.get(field) for s in sec["total_of"]]
                     if any(v is None for v in vals):
                         total = "Pending"
                     else:
@@ -1959,7 +2013,7 @@ async def export_print_slip(
     buf = io.BytesIO()
     wb.save(buf)
     buf.seek(0)
-    filename = f"print-{packet_no or 'all'}.xlsx"
+    filename = f"print-{packet_no or 'all'}{'-final' if only_final else ''}.xlsx"
     return StreamingResponse(
         buf,
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
