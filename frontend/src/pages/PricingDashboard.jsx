@@ -9,7 +9,7 @@ import { Overline } from "@/components/Reveal";
 // What can be printed on the slip (Plan no and a total per plan are always printed)
 const SLIP_OPTIONS = [
   ["carat", "Size (carat)"],
-  ["rough_weight", "Rough weight"],
+  ["rough_weight", "Rough weight (at the top)"],
   ["shape", "Shape"],
   ["color", "Colour"],
   ["clarity", "Clarity"],
@@ -58,6 +58,8 @@ export default function PricingDashboard() {
     }
     return SLIP_DEFAULT;
   });
+
+  const [slipOnlyFinal, setSlipOnlyFinal] = useState(false);
 
   const handleLogout = async () => {
     await logout();
@@ -211,6 +213,7 @@ export default function PricingDashboard() {
     if (packetNo) params.set("packet_no", packetNo);
     params.set("fields", slipFields.join(","));
     params.set("paper", slipPaper);
+    if (slipOnlyFinal) params.set("only_final", "true");
     return `${API_BASE}/pricing/quote-stones/export-print?${params.toString()}`;
   };
 
@@ -236,6 +239,15 @@ export default function PricingDashboard() {
           </label>
         ))}
       </div>
+      <label className="mt-6 flex items-center gap-2 font-mono text-xs uppercase tracking-[0.1em] text-gold">
+        <input
+          type="checkbox"
+          checked={slipOnlyFinal}
+          onChange={(e) => setSlipOnlyFinal(e.target.checked)}
+          data-testid="slip-only-final"
+        />
+        Only the final plan (leave out all other plans)
+      </label>
       <div className="mt-6 flex flex-wrap items-center gap-6">
         <label className="flex items-center gap-3 font-mono text-xs uppercase tracking-[0.1em] text-zinc-300">
           Paper
@@ -310,24 +322,32 @@ export default function PricingDashboard() {
     return [...map.entries()].map(([key, stones]) => {
       const singles = stones.filter((s) => !s.color_range);
       const ranges = stones.filter((s) => s.color_range);
-      const maxIdx = ranges.length ? Math.max(...ranges.map((s) => s.range_index ?? 0)) : -1;
-      const options = ranges.length ? Array.from({ length: maxIdx + 1 }, (_, k) => k) : [null];
-      const totals = options.map((k) => {
-        const chosen = k === null ? [] : ranges.filter((s) => (s.range_index ?? 0) === k);
-        const rows = [...singles, ...chosen];
-        return {
-          label: [...new Set(chosen.map((s) => s.color))].join("/"),
-          carat: sumOf(rows, "pol_cts"),
-          gross: sumOf(rows, "gross_value"),
-          labour: sumOf(rows, "labour"),
-          net: sumOf(rows, "net_value"),
-          pending: rows.some((s) => s.gross_value == null),
-        };
+      const makeTotal = (rows, label) => ({
+        label,
+        carat: sumOf(rows, "pol_cts"),
+        gross: sumOf(rows, "gross_value"),
+        labour: sumOf(rows, "labour"),
+        net: sumOf(rows, "net_value"),
+        pending: rows.some((s) => s.gross_value == null),
       });
+      // sections: each ends with a total sitting directly under its rows
+      const sections = [];
+      if (!ranges.length) {
+        sections.push({ rows: stones, total: makeTotal(stones, "") });
+      } else {
+        // single-colour stones first (no total of their own, counted in every colour's total)
+        if (singles.length) sections.push({ rows: singles, total: null });
+        const maxIdx = Math.max(...ranges.map((s) => s.range_index ?? 0));
+        for (let k = 0; k <= maxIdx; k += 1) {
+          const chosen = ranges.filter((s) => (s.range_index ?? 0) === k);
+          if (!chosen.length) continue;
+          const label = [...new Set(chosen.map((s) => s.color))].join("/");
+          sections.push({ rows: chosen, total: makeTotal([...singles, ...chosen], label) });
+        }
+      }
       return {
         key,
-        stones,
-        totals,
+        sections,
         plans: [...new Set(stones.map((s) => s.plan_no))],
         isFinal: stones.some((s) => s.is_final),
       };
@@ -567,7 +587,9 @@ export default function PricingDashboard() {
           <tbody>
             {groups.map((g) => (
               <Fragment key={g.key}>
-            {g.stones.map((s) => (
+            {g.sections.map((sec, si) => (
+              <Fragment key={`${g.key}-${si}`}>
+            {sec.rows.map((s) => (
               <tr
                 key={s.quote_stone_id}
                 className={`border-b border-white/5 text-zinc-300 ${s.is_final ? "bg-emerald-500/10" : ""}`}
@@ -639,7 +661,7 @@ export default function PricingDashboard() {
                 </td>
               </tr>
             ))}
-            {g.totals.map((t, i) => (
+            {(sec.total ? [sec.total] : []).map((t, i) => (
               <tr
                 key={`${g.key}-total-${i}`}
                 className={`border-b border-white/10 font-mono text-xs ${
@@ -659,6 +681,8 @@ export default function PricingDashboard() {
                 <td className="px-5 py-3 text-emerald-400">{t.pending ? "Pending" : fmt(t.net)}</td>
                 <td colSpan={4} className="px-5 py-3"></td>
               </tr>
+            ))}
+              </Fragment>
             ))}
               </Fragment>
             ))}
