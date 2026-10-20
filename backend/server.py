@@ -1852,6 +1852,9 @@ SLIP_SIZES = {
     "a4": {"paper": 9,  "font": 11, "title": 16, "col": 11,  "plan": 24, "row": None, "margin": 0.4},
     "a5": {"paper": 11, "font": 9,  "title": 13, "col": 8.5, "plan": 15, "row": 13,   "margin": 0.3},
     "a6": {"paper": 70, "font": 8,  "title": 11, "col": 7,   "plan": 13, "row": 11.5, "margin": 0.2},
+    # 4 x 6 inch = packet size (10.16 x 15.24 cm). There is no standard Excel code for it,
+    # so the slip is built to fit it: choose "4 x 6 in" as the paper in the print window.
+    "4x6": {"paper": None, "font": 8, "title": 11, "col": 7, "plan": 12, "row": 11.5, "margin": 0.15},
 }
 
 
@@ -1911,7 +1914,7 @@ async def export_print_slip(
         ws.title = _sheet_title(wb, ws, pkt)
 
         # title: packet number, rough weight (same for the whole packet), final plan note
-        heading = f"Packet {pkt}"
+        heading = f"ESTIMATE   ·   Packet {pkt}"
         if show_rough and rough_of.get(pkt) is not None:
             heading += f"   ·   Rough {rough_of[pkt]}"
         if only_final:
@@ -2002,7 +2005,14 @@ async def export_print_slip(
         ws.print_area = f"A1:{last_col}{r}"
         ws.print_title_rows = "3:3"
         ws.page_setup.orientation = "landscape" if ncols > 7 else "portrait"
-        ws.page_setup.paperSize = size["paper"]
+        if size["paper"]:
+            ws.page_setup.paperSize = size["paper"]
+        else:
+            try:  # 4 x 6 inch custom paper (used by some programs; Excel uses the printer's paper choice)
+                ws.page_setup.paperWidth = "101.6mm"
+                ws.page_setup.paperHeight = "152.4mm"
+            except Exception:
+                pass
         ws.page_setup.fitToWidth = 1
         ws.page_setup.fitToHeight = 0
         ws.sheet_properties.pageSetUpPr = PageSetupProperties(fitToPage=True)
