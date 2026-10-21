@@ -44,9 +44,9 @@ export default function PricingDashboard() {
   const [showSlip, setShowSlip] = useState(false);
   const [slipPaper, setSlipPaper] = useState(() => {
     try {
-      return localStorage.getItem("slipPaper") || "a5";
+      return localStorage.getItem("slipPaper") || "4x6";
     } catch (e) {
-      return "a5";
+      return "4x6";
     }
   });
   const [slipFields, setSlipFields] = useState(() => {
@@ -60,7 +60,6 @@ export default function PricingDashboard() {
   });
 
   const [slipOnlyFinal, setSlipOnlyFinal] = useState(false);
-
   const handleLogout = async () => {
     await logout();
     navigate("/portal-access", { replace: true });
@@ -355,6 +354,21 @@ export default function PricingDashboard() {
     });
   })();
 
+  // the plan option with the HIGHEST total value (needs two or more fully priced totals)
+  const bestTotalId = (() => {
+    let best = null;
+    let count = 0;
+    groups.forEach((g) =>
+      g.sections.forEach((sec, si) => {
+        if (sec.total && !sec.total.pending) {
+          count += 1;
+          if (best === null || sec.total.net > best.net) best = { net: sec.total.net, id: `${g.key}-${si}` };
+        }
+      })
+    );
+    return count >= 2 && best ? best.id : null;
+  })();
+
   const LogoutButton = (
     <button
       onClick={handleLogout}
@@ -559,7 +573,12 @@ export default function PricingDashboard() {
         </div>
       )}
 
-      <div className="mt-12 overflow-x-auto border border-white/10" data-testid="pricing-table">
+      <p className="mt-8 text-xs text-zinc-500" data-testid="pricing-legend">
+        <span className="text-emerald-300">Green</span> = final plan ·{" "}
+        <span className="text-amber-300">Amber ▲</span> = highest total value
+      </p>
+
+      <div className="mt-4 overflow-x-auto border border-white/10" data-testid="pricing-table">
         <table className="w-full text-left text-sm">
           <thead>
             <tr className="border-b border-white/10 font-mono text-[10px] uppercase tracking-[0.25em] text-zinc-500">
@@ -666,7 +685,11 @@ export default function PricingDashboard() {
               <tr
                 key={`${g.key}-total-${i}`}
                 className={`border-b border-white/10 font-mono text-xs ${
-                  g.isFinal ? "bg-emerald-500/20 text-emerald-200" : "bg-white/5 text-zinc-200"
+                  bestTotalId === `${g.key}-${si}`
+                    ? "bg-amber-500/30 text-amber-200"
+                    : g.isFinal
+                    ? "bg-emerald-500/20 text-emerald-200"
+                    : "bg-white/5 text-zinc-200"
                 }`}
                 data-testid={`pricing-total-${g.key}-${i}`}
               >
@@ -674,6 +697,7 @@ export default function PricingDashboard() {
                   Total · Plan {g.plans.join(" + ")}
                   {t.label ? ` · colour ${t.label}` : ""}
                   {g.isFinal ? " ★ FINAL" : ""}
+                  {bestTotalId === `${g.key}-${si}` ? " ▲ HIGHEST" : ""}
                 </td>
                 <td className="px-5 py-3">{t.carat.toFixed(2)}</td>
                 <td colSpan={7} className="px-5 py-3"></td>
