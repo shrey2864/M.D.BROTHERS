@@ -259,7 +259,7 @@ export default function PricingDashboard() {
             <option value="a4">A4 (normal)</option>
             <option value="a5">A5 (small)</option>
             <option value="a6">A6 (tiny)</option>
-            <option value="4x6">4 × 6 inch (packet size)</option>
+            <option value="4x6">4 × 6 inch portrait (packet size)</option>
           </select>
         </label>
         <button
