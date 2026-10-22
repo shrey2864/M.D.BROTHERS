@@ -60,6 +60,7 @@ export default function PricingDashboard() {
   });
 
   const [slipOnlyFinal, setSlipOnlyFinal] = useState(false);
+  const [slipFinalColour, setSlipFinalColour] = useState("both");
   const handleLogout = async () => {
     await logout();
     navigate("/portal-access", { replace: true });
@@ -212,9 +213,16 @@ export default function PricingDashboard() {
     if (packetNo) params.set("packet_no", packetNo);
     params.set("fields", slipFields.join(","));
     params.set("paper", slipPaper);
-    if (slipOnlyFinal) params.set("only_final", "true");
+    if (slipOnlyFinal) {
+      params.set("only_final", "true");
+      if (slipFinalColour !== "both") params.set("final_colour", slipFinalColour);
+    }
     return `${API_BASE}/pricing/quote-stones/export-print?${params.toString()}`;
   };
+
+  const finalRangeColours = [
+    ...new Set(items.filter((s) => s.is_final && s.color_range).map((s) => s.color)),
+  ].sort();
 
   const SlipPanel = showSlip ? (
     <div className="mt-6 border border-white/10 bg-[#0C1E30] p-6" data-testid="slip-options">
@@ -247,6 +255,31 @@ export default function PricingDashboard() {
         />
         Only the final plan (leave out all other plans)
       </label>
+      {slipOnlyFinal && (selectedPacket ? finalRangeColours.length > 0 : true) && (
+        <label className="mt-4 flex flex-wrap items-center gap-3 font-mono text-xs uppercase tracking-[0.1em] text-zinc-300">
+          Colour ranges in the final plan
+          <select
+            value={slipFinalColour}
+            onChange={(e) => setSlipFinalColour(e.target.value)}
+            data-testid="slip-final-colour"
+            className="border-b border-white/20 bg-transparent py-1 text-sm text-white focus:border-gold focus:outline-none [&>option]:bg-black"
+          >
+            <option value="both">Print both colours</option>
+            {selectedPacket ? (
+              finalRangeColours.map((c) => (
+                <option key={c} value={c}>
+                  Only colour {c}
+                </option>
+              ))
+            ) : (
+              <>
+                <option value="first">First colour only (e.g. D of D-E)</option>
+                <option value="second">Second colour only (e.g. E of D-E)</option>
+              </>
+            )}
+          </select>
+        </label>
+      )}
       <div className="mt-6 flex flex-wrap items-center gap-6">
         <label className="flex items-center gap-3 font-mono text-xs uppercase tracking-[0.1em] text-zinc-300">
           Paper
