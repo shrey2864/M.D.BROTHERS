@@ -1885,8 +1885,8 @@ from openpyxl.worksheet.pagebreak import Break
 # The rough weight is printed in the title at the top (not as a column).
 # Columns go in this order, with Carat and the money columns at the right end, so each
 # TOTAL label can spread over the empty cells in front of them.
-SLIP_ORDER = ["shape", "color", "clarity", "fluorescence", "cps", "rapaport", "discount",
-              "carat", "gross", "net"]
+SLIP_ORDER = ["shape", "carat", "color", "clarity", "fluorescence", "cps", "rapaport", "discount",
+              "gross", "net"]
 # key: (heading, stone field(s), Excel number format)
 SLIP_COLS = {
     "shape": ("Shape", ["shape_display"], None),
@@ -2112,7 +2112,7 @@ async def export_print_slip(
                     continue
                 # this colour's total sits directly under its rows
                 r += 1
-                name = f"Total {grp}"
+                name = f"Tot {grp}"
                 if sec["label"]:
                     name += f" ({sec['label'].replace(' / ', '/')})"
                 if is_final:
