@@ -24,8 +24,8 @@ const SHAPES = [
   { code: "PS", label: "Marquise" },
   { code: "PS", label: "Oval" },
   { code: "PS", label: "Radiant" },
-  { code: "PS", label: "Cushion Brilliant" },
-  { code: "PS", label: "Cushion Modified Brilliant" },
+  { code: "PS", label: "Cushion Brilliant", short: "Cushion BR" },
+  { code: "PS", label: "Cushion Modified Brilliant", short: "CMB" },
   { code: "PS", label: "Heart" },
   { code: "PS", label: "Old Mine" },
   { code: "PS", label: "Baguette" },
@@ -166,7 +166,7 @@ export default function StaffEntry() {
     const { shapeLabel, ...rest } = form;
     const payload = {
       ...rest,
-      shape_name: shapeLabel, // the exact shape picked, shown in Excel + dashboard
+      shape_name: (SHAPES.find((s) => s.label === shapeLabel) || {}).short || shapeLabel,
       rough_name: form.rough_name.trim(),
       packet_no: form.packet_no.trim(),
       planner_name: form.planner_name.trim(),
