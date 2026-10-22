@@ -1310,7 +1310,7 @@ from openpyxl.styles import Alignment, Border, Side, Font, PatternFill
 from openpyxl.worksheet.properties import PageSetupProperties
 
 
-def shape_display_of(stone: dict) -> str:
+def _shape_display_raw(stone: dict) -> str:
     """The shape name to show people: Marquise, Oval, Heart, Round ..."""
     if stone.get("shape_name"):
         return stone["shape_name"]
@@ -1319,6 +1319,12 @@ def shape_display_of(stone: dict) -> str:
     if m:
         return m.group(1)
     return {"BR": "Round", "PS": "Fancy shape"}.get(stone.get("shape"), stone.get("shape"))
+    SHAPE_SHORT = {"Cushion Brilliant": "Cushion BR", "Cushion Modified Brilliant": "CMB"}
+
+
+def shape_display_of(stone: dict) -> str:
+    name = _shape_display_raw(stone)
+    return SHAPE_SHORT.get(name, name)
 
 
 def staff_view(stone: dict) -> dict:
