@@ -1625,7 +1625,7 @@ GT7_COLUMNS = [
     ("shape_display", "Shape"),
     ("pol_cts", "PolCts"), ("color", "RefColor"), ("color_range", "ColourRange"),
     ("clarity", "RefPurity"),
-    ("cut", "SarinCut"), ("polish", "Polish"), ("symmetry", "Symm"), ("fluorescence", "Fls"),
+    ("cps", "C/P/S"), ("fluorescence", "Fls"),
     ("black_no_black", "BlackNoBlack"), ("lab", "Lab"), ("rapaport_rate", "Rapaport"),
     ("discount_percent", "RefDisc%"), ("gross_value", "GrossValue"),
     ("labour", "Labour"), ("net_value", "NetValue"),
@@ -1762,6 +1762,8 @@ async def export_quote_stones_excel(packet_no: Optional[str] = None, user: dict 
     query = {"packet_no": packet_no} if packet_no else {}
     items = await db.quote_stones.find(query, {"_id": 0}).to_list(5000)
     items = [with_computed_pricing(i) for i in items]
+    for i in items:   # Cut / Polish / Symmetry share one column, e.g. "EX EX VG"
+        i["cps"] = " ".join(str(i.get(k) or "—") for k in ("cut", "polish", "symmetry"))
     await attach_user_names(items)
     items.sort(key=stone_sort_key)
 
@@ -1875,6 +1877,9 @@ async def export_quote_stones_excel(packet_no: Optional[str] = None, user: dict 
     )
 
 
+from openpyxl.worksheet.pagebreak import Break
+
+
 # ---------------- Print slip: you choose what is printed ----------------
 # Every stone is ONE line. Cut / Polish / Symmetry share one column (C/P/S).
 # The rough weight is printed in the title at the top (not as a column).
@@ -1882,31 +1887,30 @@ async def export_quote_stones_excel(packet_no: Optional[str] = None, user: dict 
 # TOTAL label can spread over the empty cells in front of them.
 SLIP_ORDER = ["shape", "color", "clarity", "fluorescence", "cps", "rapaport", "discount",
               "carat", "gross", "net"]
-# key: (heading, stone field(s), Excel number format, column width for 12 pt bold text)
+# key: (heading, stone field(s), Excel number format)
 SLIP_COLS = {
-    "shape": ("Shape", ["shape_display"], None, 14),
-    "color": ("Col", ["color"], None, 5),
-    "clarity": ("Clar", ["clarity"], None, 7),
-    "fluorescence": ("Fls", ["fluorescence"], None, 5),
-    "cps": ("C/P/S", ["cut", "polish", "symmetry"], None, 10),
-    "rapaport": ("Rap", ["rapaport_rate"], "#,##0", 8),
-    "discount": ("Disc%", ["discount_percent"], "0.0", 6),
-    "carat": ("Ct", ["pol_cts"], "0.00", 6),
-    "gross": ("Gross", ["gross_value"], "#,##0.00", 10),
-    "net": ("Total", ["net_value"], "#,##0.00", 10),
+    "shape": ("Shape", ["shape_display"], None),
+    "color": ("Col", ["color"], None),
+    "clarity": ("Clar", ["clarity"], None),
+    "fluorescence": ("Fls", ["fluorescence"], None),
+    "cps": ("C/P/S", ["cut", "polish", "symmetry"], None),
+    "rapaport": ("Rap", ["rapaport_rate"], "#,##0"),
+    "discount": ("Disc%", ["discount_percent"], "0.0"),
+    "carat": ("Ct", ["pol_cts"], "0.00"),
+    "gross": ("Gross", ["gross_value"], "#,##0.00"),
+    "net": ("Total", ["net_value"], "#,##0.00"),
 }
 SLIP_TOTAL_KEYS = ("carat", "gross", "net")   # columns that get a total per plan
 # used when the website does not say what to print
 SLIP_DEFAULT = ["carat", "rough_weight", "color", "clarity", "fluorescence",
                 "cut", "polish", "symmetry", "discount", "net"]
 
-# The slip ALWAYS prints big, bold text with tiny margins, so it is easy to read and
+# The slip ALWAYS prints big, bold text with small margins, so it is easy to read and
 # looks the same on a thermal label (4 x 6) and on a normal page.
 SLIP_FONT = 12          # text size (points)
 SLIP_TITLE = 14         # title size (points)
-SLIP_MARGIN = 0.1       # page margin (inches)
+SLIP_MARGIN = 0.12      # page margin (inches)
 SLIP_ROW_H = 19         # row height (points)
-SLIP_PLAN_W = 9         # width of the Plan column
 # paper: (Excel paper code, width in inches, height in inches), the way the page is held:
 # "4x6" = 4 inches WIDE x 6 inches TALL (portrait). None = 4 x 6 label: pick that paper in
 # the print window.
@@ -1918,13 +1922,37 @@ SLIP_PAPER = {
 }
 
 
+def _slip_text(v, fmt) -> str:
+    """The text a cell will show (used to give every column exactly the width it needs)."""
+    if v is None:
+        return "—"
+    if isinstance(v, (int, float)) and fmt:
+        if fmt == "#,##0.00":
+            return f"{v:,.2f}"
+        if fmt == "#,##0":
+            return f"{v:,.0f}"
+        if fmt == "0.00":
+            return f"{v:.2f}"
+        if fmt == "0.000":
+            return f"{v:.3f}"
+        if fmt == "0.0":
+            return f"{v:.1f}"
+    return str(v)
+
+
+def _slip_units(n_chars: int) -> float:
+    """Column width (Excel units) needed for n_chars of 12 pt bold text, plus a little extra."""
+    return max(n_chars * 1.35 + 1.5, 4.5)
+
+
 @api_router.get("/pricing/quote-stones/export-print")
 async def export_print_slip(
     packet_no: Optional[str] = None,
     fields: Optional[str] = None,
     paper: str = "a4",
     only_final: bool = False,
-    big: bool = False,   # no longer needed: the slip is always printed big (kept so old links still work)
+    final_colour: str = "both",   # final plan only: "both", "first", "second" or a colour letter like "D"
+    big: bool = False,            # no longer needed: the slip is always printed big (kept so old links still work)
     user: dict = Depends(get_current_user),
 ):
     if not user_can_export_excel(user):
@@ -1937,24 +1965,21 @@ async def export_print_slip(
     show_rough = "rough_weight" in wanted
     cps_fields = [f for f in ("cut", "polish", "symmetry") if f in wanted]
 
-    # the columns to print: (key, heading, stone fields, number format, width)
+    # the columns to print: (key, heading, stone fields, number format)
     cols = []
     for key in SLIP_ORDER:
-        heading, flds, fmt, width = SLIP_COLS[key]
+        heading, flds, fmt = SLIP_COLS[key]
         if key == "cps":
             if not cps_fields:
                 continue
             flds = cps_fields
-            width = {1: 5, 2: 7, 3: 10}[len(cps_fields)]
         elif key not in wanted:
             continue
-        cols.append((key, heading, flds, fmt, width))
+        cols.append((key, heading, flds, fmt))
     if not cols:   # nothing valid ticked: print the default columns
         wanted = SLIP_DEFAULT
-        cps_fields = ["cut", "polish", "symmetry"]
-        cols = [(k, SLIP_COLS[k][0], cps_fields if k == "cps" else SLIP_COLS[k][1],
-                 SLIP_COLS[k][2], 10 if k == "cps" else SLIP_COLS[k][3])
-                for k in SLIP_ORDER if k == "cps" or k in wanted]
+        cols = [(k, SLIP_COLS[k][0], ["cut", "polish", "symmetry"] if k == "cps" else SLIP_COLS[k][1],
+                 SLIP_COLS[k][2]) for k in SLIP_ORDER if k == "cps" or k in wanted]
 
     query = {"packet_no": packet_no} if packet_no else {}
     items = await db.quote_stones.find(query, {"_id": 0}).to_list(5000)
@@ -1967,15 +1992,39 @@ async def export_print_slip(
         pk = str(st.get("packet_no", ""))
         if pk not in rough_of and st.get("rough_weight") is not None:
             rough_of[pk] = st["rough_weight"]
+
+    fc = (final_colour or "both").strip()
+    colour_note = False
     if only_final:
         items = [st for st in items if st.get("is_final")]
         if not items:
             raise HTTPException(status_code=404, detail="No final plan is marked yet")
+        # colour ranges in the final plan: print both colours, or just one colour
+        if fc.lower() != "both":
+            colour_note = True
+            letters_of = {}
+            for st in items:
+                if st.get("color_range"):
+                    letters_of.setdefault(st.get("range_id"), set()).add(str(st.get("color", "")).upper())
+
+            def keep(st):
+                if not st.get("color_range"):
+                    return True                      # single-colour stones always stay
+                idx = st.get("range_index") or 0
+                if fc.lower() == "first":
+                    return idx == 0
+                if fc.lower() == "second":
+                    return idx == 1
+                if fc.upper() in letters_of.get(st.get("range_id"), set()):
+                    return str(st.get("color", "")).upper() == fc.upper()
+                return True                          # this stone has no such colour: keep both rows
+            items = [st for st in items if keep(st)]
     items.sort(key=stone_sort_key)
 
     thin = Side(style="thin", color="000000")
     box = Border(left=thin, right=thin, top=thin, bottom=thin)
-    center = Alignment(horizontal="center", vertical="center")
+    # shrink_to_fit: a number that is still too wide for its cell gets smaller instead of "####"
+    center = Alignment(horizontal="center", vertical="center", shrink_to_fit=True)
     final_fill = PatternFill("solid", fgColor="C6E0B4")   # green = final plan
     total_fill = PatternFill("solid", fgColor="FFF2CC")
     best_fill = PatternFill("solid", fgColor="FFC000")    # amber = highest total value
@@ -1983,26 +2032,31 @@ async def export_print_slip(
 
     ncols = 1 + len(cols)
     last_col = get_column_letter(ncols)
-    widths = [SLIP_PLAN_W] + [c[4] for c in cols]
     # the first column that gets a total: the TOTAL label spreads over the cells in front of it
     first_total = next((i for i, c in enumerate(cols, start=2) if c[0] in SLIP_TOTAL_KEYS), None)
-    # 4 x 6 is always portrait; other papers turn sideways only if the columns do not fit across
-    content_in = sum(int(w * 7 + 5) for w in widths) / 96
-    landscape = paper_key != "4x6" and content_in > min(page_w, page_h) - 2 * SLIP_MARGIN
+    label_merged = bool(first_total and first_total > 2)
 
-    def value_of(stone, flds):
-        if len(flds) == 1:
-            return stone.get(flds[0])
-        parts = [str(stone.get(f) or "—") for f in flds]
-        return " ".join(parts)
-
+    # ONE sheet holds every packet, each packet starting on a new page, so a single Print
+    # prints them all (Excel normally prints only the sheet you are looking at).
     wb = Workbook()
-    first = True
+    ws = wb.active
+    ws.title = _sheet_title(wb, ws, packet_no) if packet_no else "Slips"
+
+    # longest text in every column, so each column gets exactly the width it needs
+    longest = [len("Plan")] + [len(c[1]) for c in cols]
+
+    def seen(col_idx, text):
+        longest[col_idx - 1] = max(longest[col_idx - 1], len(text))
+
+    r = 0                      # last row used
+    title_row = 1
+    first_packet = True
     for pkt, pkt_items in groupby(items, key=lambda s: str(s.get("packet_no", ""))):
         pkt_items = list(pkt_items)
-        ws = wb.active if first else wb.create_sheet()
-        first = False
-        ws.title = _sheet_title(wb, ws, pkt)
+        if not first_packet:
+            ws.row_breaks.append(Break(id=r + 1))   # the next packet starts on a new page
+            title_row = r + 2
+        first_packet = False
 
         # title: ESTIMATE, packet number, rough weight (same for the whole packet), final plan note
         heading = f"ESTIMATE   ·   Packet {pkt}"
@@ -2010,20 +2064,24 @@ async def export_print_slip(
             heading += f"   ·   Rough {rough_of[pkt]}"
         if only_final:
             heading += "   ·   FINAL PLAN"
-        ws.merge_cells(f"A1:{last_col}1")
-        ws["A1"] = heading
-        ws["A1"].font = Font(size=SLIP_TITLE, bold=True)
-        ws["A1"].alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
-        ws.row_dimensions[1].height = SLIP_ROW_H * 2
+            if colour_note:
+                shown = sorted({st.get("color") for st in pkt_items if st.get("color_range") and st.get("color")})
+                if shown:
+                    heading += f"   ·   colour {'/'.join(shown)}"
+        ws.merge_cells(start_row=title_row, start_column=1, end_row=title_row, end_column=ncols)
+        ws.cell(row=title_row, column=1, value=heading)
+        ws.cell(row=title_row, column=1).font = Font(size=SLIP_TITLE, bold=True)
+        ws.cell(row=title_row, column=1).alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+        ws.row_dimensions[title_row].height = SLIP_ROW_H * 2
 
+        r = title_row + 2      # column headings
         for i, head in enumerate(["Plan"] + [c[1] for c in cols], start=1):
-            c = ws.cell(row=3, column=i, value=head)
+            c = ws.cell(row=r, column=i, value=head)
             c.font = font
             c.border = box
             c.alignment = center
-        ws.row_dimensions[3].height = SLIP_ROW_H
+        ws.row_dimensions[r].height = SLIP_ROW_H
 
-        r = 3
         best = highest_total(pkt_items)   # amber = highest total value in this packet
         best_rows = []
         # one block per plan group: Plan 1 + Plan 1A together, Plan 2 separate
@@ -2036,11 +2094,13 @@ async def export_print_slip(
                 for st in sec["rows"]:
                     r += 1
                     ws.cell(row=r, column=1, value=st.get("plan_no"))
-                    for i, (_key, _head, flds, fmt, _w) in enumerate(cols, start=2):
-                        v = value_of(st, flds)
+                    seen(1, str(st.get("plan_no", "")))
+                    for i, (_key, _head, flds, fmt) in enumerate(cols, start=2):
+                        v = st.get(flds[0]) if len(flds) == 1 else " ".join(str(st.get(f) or "—") for f in flds)
                         cell = ws.cell(row=r, column=i, value=v if v is not None else "—")
                         if fmt and v is not None:
                             cell.number_format = fmt
+                        seen(i, _slip_text(v, fmt))
                     for i in range(1, ncols + 1):
                         cell = ws.cell(row=r, column=i)
                         cell.border = box
@@ -2061,7 +2121,9 @@ async def export_print_slip(
                     name += " ▲"          # highest total value
                     best_rows.append(r)
                 ws.cell(row=r, column=1, value=name)
-                for i, (key, _head, flds, fmt, _w) in enumerate(cols, start=2):
+                if not label_merged:
+                    seen(1, name)         # no room to spread: the Plan column must fit the label
+                for i, (key, _head, flds, fmt) in enumerate(cols, start=2):
                     if key not in SLIP_TOTAL_KEYS:
                         continue
                     vals = [st.get(flds[0]) for st in sec["total_of"]]
@@ -2072,6 +2134,7 @@ async def export_print_slip(
                     cell = ws.cell(row=r, column=i, value=total)
                     if fmt and total != "Pending":
                         cell.number_format = fmt
+                    seen(i, total if total == "Pending" else _slip_text(total, fmt))
                 for i in range(1, ncols + 1):
                     cell = ws.cell(row=r, column=i)
                     cell.border = box
@@ -2080,7 +2143,7 @@ async def export_print_slip(
                     cell.fill = best_fill if r in best_rows else total_fill
                 ws.row_dimensions[r].height = SLIP_ROW_H
                 # the label spreads over the cells in front of the first total column
-                if first_total and first_total > 2:
+                if label_merged:
                     ws.merge_cells(start_row=r, start_column=1, end_row=r, end_column=first_total - 1)
 
             # the final plan is shaded green
@@ -2093,28 +2156,31 @@ async def export_print_slip(
                         if type(cell).__name__ != "MergedCell":
                             cell.fill = final_fill
 
-        for i, w in enumerate(widths, start=1):
-            ws.column_dimensions[get_column_letter(i)].width = w
+    # every column is exactly as wide as its longest text (so a value is never cut off)
+    widths = [_slip_units(n) for n in longest]
+    for i, w in enumerate(widths, start=1):
+        ws.column_dimensions[get_column_letter(i)].width = w
 
-        # print setup: tiny margins, fits the page width, title repeats
-        ws.print_area = f"A1:{last_col}{r}"
-        ws.print_title_rows = "3:3"
-        ws.page_setup.orientation = "landscape" if landscape else "portrait"
-        if paper_code:
-            ws.page_setup.paperSize = paper_code
-        else:
-            try:  # 4 x 6 inch = 4 WIDE x 6 TALL (portrait); Excel uses the paper chosen in the print window
-                ws.page_setup.paperWidth = "101.6mm"
-                ws.page_setup.paperHeight = "152.4mm"
-            except Exception:
-                pass
-        ws.page_setup.fitToWidth = 1
-        ws.page_setup.fitToHeight = 0
-        ws.sheet_properties.pageSetUpPr = PageSetupProperties(fitToPage=True)
-        ws.print_options.horizontalCentered = True
-        ws.page_margins.left = ws.page_margins.right = SLIP_MARGIN
-        ws.page_margins.top = ws.page_margins.bottom = SLIP_MARGIN
-        ws.page_margins.header = ws.page_margins.footer = 0
+    # print setup: small margins, fits the page width
+    content_in = sum(int(w * 7 + 5) for w in widths) / 96
+    landscape = paper_key != "4x6" and content_in > min(page_w, page_h) - 2 * SLIP_MARGIN
+    ws.print_area = f"A1:{last_col}{r}"
+    ws.page_setup.orientation = "landscape" if landscape else "portrait"
+    if paper_code:
+        ws.page_setup.paperSize = paper_code
+    else:
+        try:  # 4 x 6 inch = 4 WIDE x 6 TALL (portrait); Excel uses the paper chosen in the print window
+            ws.page_setup.paperWidth = "101.6mm"
+            ws.page_setup.paperHeight = "152.4mm"
+        except Exception:
+            pass
+    ws.page_setup.fitToWidth = 1
+    ws.page_setup.fitToHeight = 0
+    ws.sheet_properties.pageSetUpPr = PageSetupProperties(fitToPage=True)
+    ws.print_options.horizontalCentered = True
+    ws.page_margins.left = ws.page_margins.right = SLIP_MARGIN
+    ws.page_margins.top = ws.page_margins.bottom = SLIP_MARGIN
+    ws.page_margins.header = ws.page_margins.footer = 0
 
     buf = io.BytesIO()
     wb.save(buf)
@@ -2125,6 +2191,7 @@ async def export_print_slip(
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
+    
 # =====================================================================
 # JEWELLERY SECTION
 # =====================================================================
