@@ -2155,7 +2155,9 @@ async def export_print_slip(
     final_fill = PatternFill("solid", fgColor="C6E0B4")   # green = final plan
     total_fill = PatternFill("solid", fgColor="FFF2CC")
     best_fill = PatternFill("solid", fgColor="FFC000")    # amber = highest total value
-    font = Font(size=SLIP_FONT, bold=True)                # bold prints clearer on thermal paper
+    # normal rows: regular Arial (not too light, not too dark); headings and totals: bold
+    font = Font(name="Arial", size=SLIP_FONT, bold=False)
+    bold_font = Font(name="Arial", size=SLIP_FONT, bold=True)
 
     ncols = 1 + len(cols)
     last_col = get_column_letter(ncols)
@@ -2205,7 +2207,7 @@ async def export_print_slip(
         r = title_row + 2      # column headings
         for i, head in enumerate(["Plan"] + [c[1] for c in cols], start=1):
             c = ws.cell(row=r, column=i, value=head)
-            c.font = font
+            c.font = bold_font
             c.border = box
             c.alignment = center
         ws.row_dimensions[r].height = SLIP_ROW_H
@@ -2280,7 +2282,7 @@ async def export_print_slip(
                     cell = ws.cell(row=r, column=i)
                     cell.border = box
                     cell.alignment = center
-                    cell.font = font
+                    cell.font = bold_font
                     cell.fill = best_fill if r in best_rows else total_fill
                 ws.row_dimensions[r].height = SLIP_ROW_H
                 # the label spreads over the cells in front of the first total column
