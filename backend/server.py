@@ -1376,6 +1376,8 @@ def staff_view(stone: dict) -> dict:
               "priced_by", "priced_at", "is_final"}
     out = {k: v for k, v in stone.items() if k not in hidden}
     out["shape_display"] = shape_display_of(stone)
+    if out.get("shape") == "PS":
+        out["cut"] = None
     return out
 
 
@@ -1383,6 +1385,8 @@ def with_computed_pricing(stone: dict) -> dict:
     out = dict(stone)
     out["shape_display"] = shape_display_of(out)
     out["final_flag"] = "FINAL" if out.get("is_final") else None
+    if out.get("shape") == "PS":
+        out["cut"] = None
     rate = out.get("rapaport_rate")
     disc = out.get("discount_percent")
     labour = out.get("labour") or 0.0
