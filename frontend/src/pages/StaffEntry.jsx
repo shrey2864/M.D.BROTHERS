@@ -24,8 +24,8 @@ const SHAPES = [
   { code: "PS", label: "Marquise" },
   { code: "PS", label: "Oval" },
   { code: "PS", label: "Radiant" },
-  { code: "PS", label: "Cushion Brilliant" },
-  { code: "PS", label: "Cushion Modified Brilliant" },
+  { code: "PS", label: "Cushion Brilliant", short: "Cushion BR" },
+  { code: "PS", label: "Cushion Modified Brilliant", short: "CMB" },
   { code: "PS", label: "Heart" },
   { code: "PS", label: "Old Mine" },
   { code: "PS", label: "Baguette" },
@@ -73,6 +73,7 @@ export default function StaffEntry() {
   const [form, setForm] = useState({ ...EMPTY, shapeLabel: "Round" });
   const [saving, setSaving] = useState(false);
   const [items, setItems] = useState([]);
+  const [editingId, setEditingId] = useState(null); // the stone being edited (null = adding a new one)
 
   // The packet whose details (planner / rough weight / fluorescence) the form is carrying
   const activePacket = useRef("");
@@ -124,7 +125,14 @@ export default function StaffEntry() {
   // exact name is saved too (shape_name).
   const setShapeLabel = (label) => {
     const match = SHAPES.find((s) => s.label === label);
-    setForm((f) => ({ ...f, shapeLabel: label, shape: match ? match.code : f.shape }));
+    const code = match ? match.code : form.shape;
+    // fancy shapes have no cut: it stays blank (Round gets "EX" back as the starting value)
+    setForm((f) => ({
+      ...f,
+      shapeLabel: label,
+      shape: code,
+      cut: code === "PS" ? "" : f.cut || "EX",
+    }));
   };
 
   const deleteStone = async (s) => {
@@ -151,6 +159,57 @@ export default function StaffEntry() {
   };
 
   const canDelete = (s) => s.created_by === user.user_id && s.status !== "priced";
+
+  // ---- edit a stone: its details go back into the form ----
+  const labelOfStone = (s) => {
+    const name = s.shape_display || s.shape_name || "";
+    const hit = SHAPES.find((x) => x.label === name || x.short === name);
+    return hit ? hit.label : s.shape === "BR" ? "Round" : "Pear";
+  };
+
+  const startEdit = (s) => {
+    const label = labelOfStone(s);
+    const code = (SHAPES.find((x) => x.label === label) || {}).code || s.shape;
+    const rough = s.rough_name || "";
+    const main =
+      s.packet_main_no ||
+      (rough && String(s.packet_no).toUpperCase().startsWith(`${rough.toUpperCase()}-`)
+        ? String(s.packet_no).slice(rough.length + 1)
+        : s.packet_no);
+    const text = (v) => (v === null || v === undefined ? "" : String(v));
+    activePacket.current = s.packet_no; // keep this stone's own packet details (no auto-fill over them)
+    setEditingId(s.quote_stone_id);
+    setForm({
+      rough_name: rough,
+      packet_no: main,
+      planner_name: s.planner_name || "",
+      rough_weight: text(s.rough_weight),
+      fluorescence: s.fluorescence || "NON",
+      plan_no: s.plan_no || "",
+      shapeLabel: label,
+      shape: code,
+      pol_cts: text(s.pol_cts),
+      color: s.color_range || s.color || "D",
+      clarity: s.clarity || "VS1",
+      cut: code === "PS" ? "" : s.cut || "EX",
+      polish: s.polish || "EX",
+      symmetry: s.symmetry || "EX",
+      black_no_black: s.black_no_black || "No black",
+      lab: s.lab || "GIA",
+      table_pct: text(s.table_pct),
+      girdle_pct: text(s.girdle_pct),
+      td: text(s.td),
+      ratio: text(s.ratio),
+      remarks: String(s.remarks || "").replace(/\s*\[[^\]]*\]\s*$/, ""),
+    });
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
+  const cancelEdit = () => {
+    setEditingId(null);
+    activePacket.current = "";
+    setForm({ ...EMPTY, shapeLabel: "Round" });
+  };
   const myPlans = [
     ...new Map(items.filter(canDelete).map((s) => [`${s.packet_no}||${s.plan_no}`, s])).values(),
   ];
@@ -166,7 +225,8 @@ export default function StaffEntry() {
     const { shapeLabel, ...rest } = form;
     const payload = {
       ...rest,
-      shape_name: shapeLabel, // the exact shape picked, shown in Excel + dashboard
+      shape_name: (SHAPES.find((x) => x.label === shapeLabel) || {}).short || shapeLabel, // shown in Excel + dashboard
+      cut: form.shape === "PS" ? null : form.cut, // fancy shapes have no cut
       rough_name: form.rough_name.trim(),
       packet_no: form.packet_no.trim(),
       planner_name: form.planner_name.trim(),
@@ -179,8 +239,14 @@ export default function StaffEntry() {
       remarks: form.remarks ? form.remarks : null,
     };
     try {
-      await api.post("/pricing/quote-stones", payload);
-      toast.success(`Stone added — Packet ${composePacket(form.rough_name, form.packet_no)}, Plan ${form.plan_no}`);
+      if (editingId) {
+        await api.put(`/pricing/quote-stones/${editingId}`, payload);
+        toast.success("Stone updated");
+        setEditingId(null);
+      } else {
+        await api.post("/pricing/quote-stones", payload);
+        toast.success(`Stone added — Packet ${composePacket(form.rough_name, form.packet_no)}, Plan ${form.plan_no}`);
+      }
       // keep the packet-level details so the next plan in this packet is quick to enter
       activePacket.current = composePacket(form.rough_name, form.packet_no);
       setForm({
@@ -219,6 +285,17 @@ export default function StaffEntry() {
       </div>
 
       <form onSubmit={submit} className="mt-12 border border-white/10 bg-[#0C1E30] p-8" data-testid="staff-entry-form">
+        {editingId && (
+          <div
+            className="mb-8 flex flex-wrap items-center justify-between gap-4 border border-gold/60 bg-gold/10 px-4 py-3 font-mono text-xs uppercase tracking-[0.15em] text-gold"
+            data-testid="staff-edit-banner"
+          >
+            Editing a stone — correct it and click Save changes
+            <button type="button" onClick={cancelEdit} className="underline hover:text-white">
+              Cancel edit
+            </button>
+          </div>
+        )}
         {/* ---------- Packet details: same for every plan in this packet ---------- */}
         <p className="font-mono text-[11px] uppercase tracking-[0.25em] text-gold">
           Packet details — entered once, stays for every plan in this packet
@@ -276,7 +353,14 @@ export default function StaffEntry() {
           ].map(([key, label, opts]) => (
             <label key={key} className="block">
               <span className={labelClass}>{label}</span>
-              <select value={form[key]} onChange={(e) => set(key, e.target.value)} data-testid={`staff-${key}-select`} className={selectClass}>
+              <select
+                value={key === "cut" && form.shape === "PS" ? "" : form[key]}
+                disabled={key === "cut" && form.shape === "PS"}
+                onChange={(e) => set(key, e.target.value)}
+                data-testid={`staff-${key}-select`}
+                className={selectClass}
+              >
+                {key === "cut" && form.shape === "PS" && <option value="">— (fancy shapes have no cut)</option>}
                 {opts.map((o) => <option key={o} value={o}>{o}</option>)}
               </select>
             </label>
@@ -291,7 +375,7 @@ export default function StaffEntry() {
         <div className="mt-8 flex justify-end">
           <button type="submit" disabled={saving} data-testid="staff-submit-button"
             className="border border-gold px-10 py-3 font-mono text-[11px] uppercase tracking-[0.25em] text-gold transition-colors hover:bg-gold hover:text-black active:scale-95 disabled:opacity-50">
-            {saving ? "Saving…" : "Add Stone"}
+            {saving ? "Saving…" : editingId ? "Save changes" : "Add Stone"}
           </button>
         </div>
       </form>
@@ -337,13 +421,22 @@ export default function StaffEntry() {
                 </td>
                 <td className="px-5 py-4">
                   {canDelete(s) && (
-                    <button
-                      onClick={() => deleteStone(s)}
-                      data-testid={`staff-delete-${s.quote_stone_id}`}
-                      className="font-mono text-[10px] uppercase tracking-[0.15em] text-red-400 hover:underline"
-                    >
-                      Delete
-                    </button>
+                    <div className="flex items-center gap-4">
+                      <button
+                        onClick={() => startEdit(s)}
+                        data-testid={`staff-edit-${s.quote_stone_id}`}
+                        className="font-mono text-[10px] uppercase tracking-[0.15em] text-gold hover:underline"
+                      >
+                        Edit
+                      </button>
+                      <button
+                        onClick={() => deleteStone(s)}
+                        data-testid={`staff-delete-${s.quote_stone_id}`}
+                        className="font-mono text-[10px] uppercase tracking-[0.15em] text-red-400 hover:underline"
+                      >
+                        Delete
+                      </button>
+                    </div>
                   )}
                 </td>
               </tr>
