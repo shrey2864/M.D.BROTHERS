@@ -17,10 +17,14 @@ const SLIP_OPTIONS = [
   ["cut", "Cut"],
   ["polish", "Polish"],
   ["symmetry", "Symmetry"],
+  ["table", "Table %"],
+  ["td", "TD"],
+  ["ratio", "Ratio"],
   ["rapaport", "Rapaport"],
   ["discount", "Discount %"],
   ["gross", "Gross value"],
   ["net", "Net value (total)"],
+  ["remarks", "Remarks"],
 ];
 const SLIP_DEFAULT = [
   "carat", "rough_weight", "color", "clarity", "fluorescence",
