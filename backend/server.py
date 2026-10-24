@@ -1196,8 +1196,9 @@ async def admin_delete_staff_user(user_id: str, user: dict = Depends(require_adm
 async def upload_rapaport_rates(file: UploadFile = File(...), user: dict = Depends(require_admin)):
     raw = (await file.read()).decode("utf-8-sig")
     reader = csv.reader(io.StringIO(raw))
-    rows = []
-    shape_seen = set()
+    now = datetime.now(timezone.utc).isoformat()
+    by_shape = {}
+    skipped = 0
     for row in reader:
         if not row or len(row) < 6:
             continue
@@ -1205,27 +1206,76 @@ async def upload_rapaport_rates(file: UploadFile = File(...), user: dict = Depen
         try:
             cmin_f, cmax_f, rate_f = float(cmin), float(cmax), float(rate)
         except ValueError:
+            skipped += 1      # the header line, or a line that is not a rate
             continue
-        shape_seen.add(shape.upper())
-        rows.append({
+        by_shape.setdefault(shape.upper(), []).append({
             "shape": shape.upper(),
             "clarity": clarity.upper(),
             "color": color.upper(),
             "carat_min": cmin_f,
             "carat_max": cmax_f,
             "rate": rate_f,
+            "updated_at": now,
         })
-    if not rows:
-        raise HTTPException(status_code=400, detail="No valid rows found in file")
-    if len(shape_seen) > 1:
-        raise HTTPException(status_code=400, detail="File must contain a single shape per upload")
-    shape = next(iter(shape_seen))
-    now = datetime.now(timezone.utc).isoformat()
+    if not by_shape:
+        raise HTTPException(status_code=400, detail="No valid rows found in the file")
+
+    summary = {}
+    for shape, shape_rows in by_shape.items():
+        before = await db.rapaport_rates.count_documents({"shape": shape})
+        await db.rapaport_rates.delete_many({"shape": shape})
+        await db.rapaport_rates.insert_many(shape_rows)
+        summary[shape] = {"before": before, "after": len(shape_rows)}
+    return {
+        "status": "uploaded",
+        "shapes": summary,
+        "rows": sum(v["after"] for v in summary.values()),
+        "skipped": skipped,
+        "updated_at": now,
+    }
+
+
+@api_router.get("/admin/rapaport-rates/export")
+async def export_rapaport_rates(shape: Optional[str] = None, user: dict = Depends(require_admin)):
+    # The current rates as a CSV file: edit it and upload it again.
+    query = {"shape": shape.upper()} if shape else {}
+    rows = await db.rapaport_rates.find(query, {"_id": 0}).sort(
+        [("shape", 1), ("clarity", 1), ("color", 1), ("carat_min", 1)]
+    ).to_list(100000)
+    out = io.StringIO()
+    writer = csv.writer(out)
+    writer.writerow(["shape", "clarity", "color", "carat_min", "carat_max", "rate"])
     for r in rows:
-        r["updated_at"] = now
-    await db.rapaport_rates.delete_many({"shape": shape})
-    await db.rapaport_rates.insert_many(rows)
-    return {"status": "uploaded", "shape": shape, "rows": len(rows), "updated_at": now}
+        writer.writerow([r["shape"], r["clarity"], r["color"], r["carat_min"], r["carat_max"], r["rate"]])
+    return Response(
+        content=out.getvalue(),
+        media_type="text/csv",
+        headers={"Content-Disposition": f'attachment; filename="rapaport-rates{"-" + shape.upper() if shape else ""}.csv"'},
+    )
+
+
+@api_router.post("/admin/rapaport-rates/apply-to-stones")
+async def apply_rapaport_to_stones(include_priced: bool = False, user: dict = Depends(require_admin)):
+    # Stones keep the Rapaport rate they had when they were entered. After new rates are
+    # uploaded, this gives the stones already entered the new rate (Gross and Net follow).
+    # By default stones that are already priced are left alone.
+    query = {} if include_priced else {"status": {"$ne": "priced"}}
+    stones = await db.quote_stones.find(
+        query,
+        {"_id": 0, "quote_stone_id": 1, "shape": 1, "pol_cts": 1, "color": 1, "clarity": 1, "rapaport_rate": 1},
+    ).to_list(50000)
+    changed = missing = 0
+    for st in stones:
+        new_rate = await lookup_rapaport_rate(st["shape"], st["pol_cts"], st["color"], st["clarity"])
+        if new_rate is None:
+            missing += 1
+            continue
+        if new_rate != st.get("rapaport_rate"):
+            await db.quote_stones.update_one(
+                {"quote_stone_id": st["quote_stone_id"]}, {"$set": {"rapaport_rate": new_rate}}
+            )
+            changed += 1
+    return {"checked": len(stones), "changed": changed, "no_rate_found": missing}
 
 
 @api_router.get("/admin/rapaport-rates/summary")
@@ -1356,19 +1406,18 @@ def compose_packet_no(rough_name: str, main_no: str) -> str:
     return main
 
 
-@api_router.post("/pricing/quote-stones")
-async def create_quote_stone(body: QuoteStoneBody, user: dict = Depends(require_staff_or_pricing)):
+async def build_stone_docs(body: QuoteStoneBody, created_by: str, created_at: str) -> list:
+    """Turns the entry form into the stone rows to save (a colour range D-E = two rows)."""
     colours = split_colour(body.color)
     range_label = "-".join(colours) if len(colours) > 1 else None
     range_id = str(uuid.uuid4()) if range_label else None
     labour = await lookup_labour(body.shape, body.pol_cts)
-    now = datetime.now(timezone.utc).isoformat()
 
     rough = (body.rough_name or "").strip()
     main_no = body.packet_no.strip()
     full_packet = compose_packet_no(rough, main_no)   # e.g. CS-1-100
 
-    created = []
+    docs = []
     for idx, col in enumerate(colours):
         doc = body.model_dump()
         doc.update({
@@ -1376,6 +1425,7 @@ async def create_quote_stone(body: QuoteStoneBody, user: dict = Depends(require_
             "packet_main_no": main_no,
             "rough_name": rough or None,
             "planner_name": (body.planner_name or "").strip() or None,
+            "cut": None if body.shape == "PS" else body.cut,   # fancy shapes have no cut
             "color": col,
             "color_range": range_label,
             "range_id": range_id,
@@ -1386,13 +1436,51 @@ async def create_quote_stone(body: QuoteStoneBody, user: dict = Depends(require_
             "rapaport_rate": await lookup_rapaport_rate(body.shape, body.pol_cts, col, body.clarity),
             "labour": labour,
             "discount_percent": None,
-            "created_by": user["user_id"],
-            "created_at": now,
+            "created_by": created_by,
+            "created_at": created_at,
         })
+        docs.append(doc)
+    return docs
+
+
+@api_router.post("/pricing/quote-stones")
+async def create_quote_stone(body: QuoteStoneBody, user: dict = Depends(require_staff_or_pricing)):
+    now = datetime.now(timezone.utc).isoformat()
+    created = []
+    for doc in await build_stone_docs(body, user["user_id"], now):
         await db.quote_stones.insert_one(doc)
         doc.pop("_id", None)
         created.append(doc if user_has_pricing_access(user) else staff_view(doc))
     return {"items": created}
+
+
+@api_router.put("/pricing/quote-stones/{quote_stone_id}")
+async def update_quote_stone(quote_stone_id: str, body: QuoteStoneBody, user: dict = Depends(require_staff_or_pricing)):
+    # Edit a stone. Staff can edit only their own stones that are not priced yet;
+    # admin and pricing managers can edit any stone.
+    scope = delete_scope(user)
+    old = await db.quote_stones.find_one({"quote_stone_id": quote_stone_id, **scope}, {"_id": 0})
+    if not old:
+        raise HTTPException(status_code=404, detail=NOT_ALLOWED_MSG)
+    if old.get("range_id"):
+        if scope and await db.quote_stones.count_documents({"range_id": old["range_id"], "status": "priced"}):
+            raise HTTPException(status_code=403, detail="This stone is already priced")
+        old_query = {"range_id": old["range_id"]}
+    else:
+        old_query = {"quote_stone_id": quote_stone_id}
+
+    # build the new rows first, so nothing is lost if something is wrong
+    docs = await build_stone_docs(body, old.get("created_by") or user["user_id"],
+                                  old.get("created_at") or datetime.now(timezone.utc).isoformat())
+    await db.quote_stones.delete_many(old_query)
+    out = []
+    for doc in docs:
+        if old.get("is_final"):
+            doc["is_final"] = True          # keep the final-plan mark
+        await db.quote_stones.insert_one(doc)
+        doc.pop("_id", None)
+        out.append(doc if user_has_pricing_access(user) else staff_view(doc))
+    return {"items": out}
 
 
 def _natural_key(s) -> list:
@@ -1648,6 +1736,35 @@ async def attach_user_names(items: list) -> list:
     return items
 
 
+def _cps_text(stone: dict, fields=("cut", "polish", "symmetry")) -> str:
+    """Cut / Polish / Symmetry in one text, e.g. "EX EX VG". A fancy shape has no cut: it stays blank."""
+    parts = []
+    for f in fields:
+        v = stone.get(f)
+        if f == "cut" and not v:
+            continue
+        parts.append(str(v or "—"))
+    return " ".join(parts)
+
+
+def _clean_remarks(text) -> str:
+    """Older stones had the shape name added at the end of the remarks, like "[Marquise]"."""
+    return re.sub(r"\s*\[[^\]]*\]\s*$", "", text or "").strip()
+
+
+# Short shape names for the print slip (change or add any you like)
+SLIP_SHAPE_CODE = {
+    "Round": "RD", "Pear": "PE", "Marquise": "MQ", "Oval": "OV", "Radiant": "RAD",
+    "Cushion BR": "CB", "Cushion Brilliant": "CB", "CMB": "CMB", "Cushion Modified Brilliant": "CMB",
+    "Heart": "HT", "Old Mine": "OM", "Baguette": "BG", "Emerald": "EM", "Fancy shape": "FNC",
+}
+
+
+def _slip_shape(name) -> str:
+    name = name or ""
+    return SLIP_SHAPE_CODE.get(name, name[:4].upper())
+
+
 def option_index(stone: dict) -> int:
     """-1 for a single-colour stone; 0 / 1 for the first / second colour row of a range stone."""
     return (stone.get("range_index") or 0) if stone.get("color_range") else -1
@@ -1763,7 +1880,8 @@ async def export_quote_stones_excel(packet_no: Optional[str] = None, user: dict 
     items = await db.quote_stones.find(query, {"_id": 0}).to_list(5000)
     items = [with_computed_pricing(i) for i in items]
     for i in items:   # Cut / Polish / Symmetry share one column, e.g. "EX EX VG"
-        i["cps"] = " ".join(str(i.get(k) or "—") for k in ("cut", "polish", "symmetry"))
+        i["cps"] = _cps_text(i)
+        i["remarks"] = _clean_remarks(i.get("remarks"))
     await attach_user_names(items)
     items.sort(key=stone_sort_key)
 
@@ -1885,8 +2003,9 @@ from openpyxl.worksheet.pagebreak import Break
 # The rough weight is printed in the title at the top (not as a column).
 # Columns go in this order, with Carat and the money columns at the right end, so each
 # TOTAL label can spread over the empty cells in front of them.
-SLIP_ORDER = ["shape", "carat", "color", "clarity", "fluorescence", "cps", "rapaport", "discount",
-              "gross", "net"]
+SLIP_ORDER = ["shape", "carat", "color", "clarity", "fluorescence", "cps", "table", "td", "ratio",
+              "rapaport", "discount", "gross", "net", "remarks"]
+SLIP_REMARKS_W = 14     # remarks longer than this wrap onto a second line
 # key: (heading, stone field(s), Excel number format)
 SLIP_COLS = {
     "shape": ("Shape", ["shape_display"], None),
@@ -1899,6 +2018,10 @@ SLIP_COLS = {
     "carat": ("Ct", ["pol_cts"], "0.00"),
     "gross": ("Gross", ["gross_value"], "#,##0.00"),
     "net": ("Total", ["net_value"], "#,##0.00"),
+    "table": ("Tbl%", ["table_pct"], "0.0"),
+    "td": ("TD", ["td"], "0.0"),
+    "ratio": ("Ratio", ["ratio"], "0.00"),
+    "remarks": ("Remarks", ["remarks"], None),
 }
 SLIP_TOTAL_KEYS = ("carat", "gross", "net")   # columns that get a total per plan
 # used when the website does not say what to print
@@ -2035,6 +2158,7 @@ async def export_print_slip(
     # the first column that gets a total: the TOTAL label spreads over the cells in front of it
     first_total = next((i for i, c in enumerate(cols, start=2) if c[0] in SLIP_TOTAL_KEYS), None)
     label_merged = bool(first_total and first_total > 2)
+    remarks_col = next((i for i, c in enumerate(cols, start=2) if c[0] == "remarks"), None)
 
     # ONE sheet holds every packet, each packet starting on a new page, so a single Print
     # prints them all (Excel normally prints only the sheet you are looking at).
@@ -2095,24 +2219,37 @@ async def export_print_slip(
                     r += 1
                     ws.cell(row=r, column=1, value=st.get("plan_no"))
                     seen(1, str(st.get("plan_no", "")))
-                    for i, (_key, _head, flds, fmt) in enumerate(cols, start=2):
-                        v = st.get(flds[0]) if len(flds) == 1 else " ".join(str(st.get(f) or "—") for f in flds)
+                    lines = 1
+                    for i, (key, _head, flds, fmt) in enumerate(cols, start=2):
+                        if key == "shape":
+                            v = _slip_shape(st.get("shape_display"))
+                        elif key == "cps":
+                            v = _cps_text(st, flds)
+                        elif key == "remarks":
+                            v = _clean_remarks(st.get("remarks"))
+                            lines = max(lines, min(3, -(-len(v) // SLIP_REMARKS_W)))
+                        else:
+                            v = st.get(flds[0])
                         cell = ws.cell(row=r, column=i, value=v if v is not None else "—")
                         if fmt and v is not None:
                             cell.number_format = fmt
-                        seen(i, _slip_text(v, fmt))
+                        text = _slip_text(v, fmt)
+                        seen(i, text[:SLIP_REMARKS_W] if key == "remarks" else text)
                     for i in range(1, ncols + 1):
                         cell = ws.cell(row=r, column=i)
                         cell.border = box
                         cell.alignment = center
                         cell.font = font
-                    ws.row_dimensions[r].height = SLIP_ROW_H
+                    if remarks_col:
+                        ws.cell(row=r, column=remarks_col).alignment = Alignment(
+                            horizontal="center", vertical="center", wrap_text=True)
+                    ws.row_dimensions[r].height = SLIP_ROW_H * lines
 
                 if sec["total_of"] is None:
                     continue
                 # this colour's total sits directly under its rows
                 r += 1
-                name = f"Tot {grp}"
+                name = f"Total {grp}"
                 if sec["label"]:
                     name += f" ({sec['label'].replace(' / ', '/')})"
                 if is_final:
