@@ -17,6 +17,7 @@ const SLIP_OPTIONS = [
   ["cut", "Cut"],
   ["polish", "Polish"],
   ["symmetry", "Symmetry"],
+  ["lab", "Lab"],
   ["table", "Table %"],
   ["td", "TD"],
   ["ratio", "Ratio"],
@@ -626,6 +627,7 @@ export default function PricingDashboard() {
               <th className="px-5 py-4">Shape</th>
               <th className="px-5 py-4">Carat</th>
               <th className="px-5 py-4">Color/Clarity</th>
+              <th className="px-5 py-4">C/P/S</th>
               <th className="px-5 py-4">Fls</th>
               <th className="px-5 py-4">Table %</th>
               <th className="px-5 py-4">TD</th>
@@ -666,6 +668,9 @@ export default function PricingDashboard() {
                 <td className="px-5 py-4">{s.shape_display ?? s.shape}</td>
                 <td className="px-5 py-4 font-mono text-xs">{s.pol_cts?.toFixed(2)}</td>
                 <td className="px-5 py-4 font-mono text-xs">{s.color}{s.color_range ? ` (${s.color_range})` : ""} • {s.clarity}</td>
+                <td className="px-5 py-4 font-mono text-xs">
+                  {[s.cut, s.polish, s.symmetry].filter(Boolean).join(" ") || "—"}
+                </td>
                 <td className="px-5 py-4 font-mono text-xs">{s.fluorescence ?? "—"}</td>
                 <td className="px-5 py-4 font-mono text-xs">{s.table_pct ?? "—"}</td>
                 <td className="px-5 py-4 font-mono text-xs">{s.td ?? "—"}</td>
@@ -737,7 +742,7 @@ export default function PricingDashboard() {
                   {bestTotalId === `${g.key}-${si}` ? " ▲ HIGHEST" : ""}
                 </td>
                 <td className="px-5 py-3">{t.carat.toFixed(2)}</td>
-                <td colSpan={7} className="px-5 py-3"></td>
+                <td colSpan={8} className="px-5 py-3"></td>
                 <td className="px-5 py-3 text-gold">{t.pending ? "Pending" : fmt(t.gross)}</td>
                 <td className="px-5 py-3">{t.pending ? "—" : fmt(t.labour)}</td>
                 <td className="px-5 py-3 text-emerald-400">{t.pending ? "Pending" : fmt(t.net)}</td>
@@ -750,7 +755,7 @@ export default function PricingDashboard() {
             ))}
             {items.length === 0 && (
               <tr>
-                <td colSpan={20} className="px-5 py-10 text-center font-mono text-xs uppercase tracking-[0.2em] text-zinc-600">
+                <td colSpan={21} className="px-5 py-10 text-center font-mono text-xs uppercase tracking-[0.2em] text-zinc-600">
                   No stones in this packet
                 </td>
               </tr>
