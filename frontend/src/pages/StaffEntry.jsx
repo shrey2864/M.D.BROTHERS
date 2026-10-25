@@ -38,7 +38,7 @@ const FLUORESCENCE = ["NON", "FNT", "MED", "STG"];
 const LABS = ["GIA", "IGI", "HRD"];
 
 // The planners - fixed names, chosen from a list (not typed)
-const PLANNERS = ["RONAKBHAI", "DIXITBHAI", "PINKESHBHAI"];
+const PLANNERS = ["RONAKBHAI", "DIXITBHAI", "PINKESHBHAI" , "VANSH"];
 
 // Single colours, then two-colour ranges (a range makes one row per colour).
 const SINGLE_COLORS = ["D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N"];
