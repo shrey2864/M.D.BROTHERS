@@ -2005,9 +2005,7 @@ from openpyxl.worksheet.pagebreak import Break
 # ---------------- Print slip: you choose what is printed ----------------
 # Every stone is ONE line. Cut / Polish / Symmetry share one column (C/P/S).
 # The rough weight is printed in the title at the top (not as a column).
-# Columns go in this order, with Carat and the money columns at the right end, so each
-# TOTAL label can spread over the empty cells in front of them.
-SLIP_ORDER = ["shape", "carat", "color", "clarity", "fluorescence", "cps", "table", "td", "ratio",
+SLIP_ORDER = ["shape", "carat", "color", "clarity", "fluorescence", "cps", "lab", "table", "td", "ratio",
               "rapaport", "discount", "gross", "net", "remarks"]
 SLIP_REMARKS_W = 14     # remarks longer than this wrap onto a second line
 # key: (heading, stone field(s), Excel number format)
@@ -2017,6 +2015,7 @@ SLIP_COLS = {
     "clarity": ("Clar", ["clarity"], None),
     "fluorescence": ("Fls", ["fluorescence"], None),
     "cps": ("C/P/S", ["cut", "polish", "symmetry"], None),
+    "lab": ("Lab", ["lab"], None),
     "rapaport": ("Rap", ["rapaport_rate"], "#,##0"),
     "discount": ("Disc%", ["discount_percent"], "0.0"),
     "carat": ("Ct", ["pol_cts"], "0.00"),
@@ -2032,12 +2031,13 @@ SLIP_TOTAL_KEYS = ("carat", "gross", "net")   # columns that get a total per pla
 SLIP_DEFAULT = ["carat", "rough_weight", "color", "clarity", "fluorescence",
                 "cut", "polish", "symmetry", "discount", "net"]
 
-# The slip ALWAYS prints big, bold text with small margins, so it is easy to read and
+# The slip always prints big text with small margins, so it is easy to read and
 # looks the same on a thermal label (4 x 6) and on a normal page.
 SLIP_FONT = 12          # text size (points)
 SLIP_TITLE = 14         # title size (points)
 SLIP_MARGIN = 0.12      # page margin (inches)
 SLIP_ROW_H = 19         # row height (points)
+SLIP_PAGE_SAFETY = 0.92  # use only this part of a page when planning page breaks (stays on the safe side)
 # paper: (Excel paper code, width in inches, height in inches), the way the page is held:
 # "4x6" = 4 inches WIDE x 6 inches TALL (portrait). None = 4 x 6 label: pick that paper in
 # the print window.
@@ -2068,7 +2068,7 @@ def _slip_text(v, fmt) -> str:
 
 
 def _slip_units(n_chars: int) -> float:
-    """Column width (Excel units) needed for n_chars of 12 pt bold text, plus a little extra."""
+    """Column width (Excel units) needed for n_chars of 12 pt text, plus a little extra."""
     return max(n_chars * 1.35 + 1.5, 4.5)
 
 
@@ -2166,147 +2166,181 @@ async def export_print_slip(
     label_merged = bool(first_total and first_total > 2)
     remarks_col = next((i for i, c in enumerate(cols, start=2) if c[0] == "remarks"), None)
 
-    # ONE sheet holds every packet, each packet starting on a new page, so a single Print
-    # prints them all (Excel normally prints only the sheet you are looking at).
-    wb = Workbook()
-    ws = wb.active
-    ws.title = _sheet_title(wb, ws, packet_no) if packet_no else "Slips"
+    def row_lines(st) -> int:
+        """How many text lines a stone row needs (only long remarks wrap)."""
+        if not remarks_col:
+            return 1
+        return max(1, min(3, -(-len(_clean_remarks(st.get("remarks"))) // SLIP_REMARKS_W)))
 
-    # longest text in every column, so each column gets exactly the width it needs
-    longest = [len("Plan")] + [len(c[1]) for c in cols]
+    def render(ws, capacity=None):
+        """Writes every packet into ws. Returns (last row, longest text of each column).
+        With a page capacity (points) every packet starts on a new page, the heading is
+        repeated on every page, and a plan is never split between two pages."""
+        longest = [len("Plan")] + [len(c[1]) for c in cols]
 
-    def seen(col_idx, text):
-        longest[col_idx - 1] = max(longest[col_idx - 1], len(text))
+        def seen(col_idx, text):
+            longest[col_idx - 1] = max(longest[col_idx - 1], len(text))
 
-    r = 0                      # last row used
-    title_row = 1
-    first_packet = True
-    for pkt, pkt_items in groupby(items, key=lambda s: str(s.get("packet_no", ""))):
-        pkt_items = list(pkt_items)
-        if not first_packet:
-            ws.row_breaks.append(Break(id=r + 1))   # the next packet starts on a new page
-            title_row = r + 2
-        first_packet = False
+        r = 0
+        first_packet = True
 
-        # title: ESTIMATE, packet number, rough weight (same for the whole packet), final plan note
-        heading = f"ESTIMATE   ·   Packet {pkt}"
-        if show_rough and rough_of.get(pkt) is not None:
-            heading += f"   ·   Rough {rough_of[pkt]}"
-        if only_final:
-            heading += "   ·   FINAL PLAN"
-            if colour_note:
-                shown = sorted({st.get("color") for st in pkt_items if st.get("color_range") and st.get("color")})
-                if shown:
-                    heading += f"   ·   colour {'/'.join(shown)}"
-        ws.merge_cells(start_row=title_row, start_column=1, end_row=title_row, end_column=ncols)
-        ws.cell(row=title_row, column=1, value=heading)
-        ws.cell(row=title_row, column=1).font = Font(size=SLIP_TITLE, bold=True)
-        ws.cell(row=title_row, column=1).alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
-        ws.row_dimensions[title_row].height = SLIP_ROW_H * 2
+        def write_header(heading_text) -> float:
+            """Title + column names. Returns the height (points) they use."""
+            nonlocal r
+            r += 1
+            ws.merge_cells(start_row=r, start_column=1, end_row=r, end_column=ncols)
+            tc = ws.cell(row=r, column=1, value=heading_text)
+            tc.font = Font(name="Arial", size=SLIP_TITLE, bold=True)
+            tc.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+            ws.row_dimensions[r].height = SLIP_ROW_H * 2
+            r += 1
+            ws.row_dimensions[r].height = 6
+            r += 1
+            for i, head in enumerate(["Plan"] + [c[1] for c in cols], start=1):
+                c = ws.cell(row=r, column=i, value=head)
+                c.font = bold_font
+                c.border = box
+                c.alignment = center
+            ws.row_dimensions[r].height = SLIP_ROW_H
+            return SLIP_ROW_H * 3 + 6
 
-        r = title_row + 2      # column headings
-        for i, head in enumerate(["Plan"] + [c[1] for c in cols], start=1):
-            c = ws.cell(row=r, column=i, value=head)
-            c.font = bold_font
-            c.border = box
-            c.alignment = center
-        ws.row_dimensions[r].height = SLIP_ROW_H
+        for pkt, pkt_items in groupby(items, key=lambda s: str(s.get("packet_no", ""))):
+            pkt_items = list(pkt_items)
+            if not first_packet:
+                ws.row_breaks.append(Break(id=r))   # the next packet starts on a new page
+                r += 1                              # (one empty row)
+            first_packet = False
 
-        best = highest_total(pkt_items)   # amber = highest total value in this packet
-        best_rows = []
-        # one block per plan group: Plan 1 + Plan 1A together, Plan 2 separate
-        for grp, block in groupby(pkt_items, key=lambda s: plan_group_of(s.get("plan_no", ""))):
-            block = list(block)
-            is_final = any(st.get("is_final") for st in block)
-            block_start = r + 1
+            # title: ESTIMATE, packet number, rough weight (same for the whole packet), final plan note
+            heading = f"ESTIMATE   ·   Packet {pkt}"
+            if show_rough and rough_of.get(pkt) is not None:
+                heading += f"   ·   Rough {rough_of[pkt]}"
+            if only_final:
+                heading += "   ·   FINAL PLAN"
+                if colour_note:
+                    shown = sorted({st.get("color") for st in pkt_items if st.get("color_range") and st.get("color")})
+                    if shown:
+                        heading += f"   ·   colour {'/'.join(shown)}"
+            used = write_header(heading)       # points used on the current page
+            header_h = used
 
-            for sec in plan_sections(block):
-                for st in sec["rows"]:
+            best = highest_total(pkt_items)   # amber = highest total value in this packet
+            best_rows = []
+            # one block per plan group: Plan 1 + Plan 1A together, Plan 2 separate
+            for grp, block in groupby(pkt_items, key=lambda s: plan_group_of(s.get("plan_no", ""))):
+                block = list(block)
+                secs = plan_sections(block)
+                block_h = sum(SLIP_ROW_H * row_lines(st) for st in block) + SLIP_ROW_H * sum(
+                    1 for sec in secs if sec["total_of"] is not None)
+                # the whole plan moves to the next page if it does not fit on this one
+                if capacity and used > header_h and used + block_h > capacity:
+                    ws.row_breaks.append(Break(id=r))
+                    used = write_header(heading + "   (continued)")
+                used += block_h
+
+                is_final = any(st.get("is_final") for st in block)
+                block_start = r + 1
+
+                for sec in secs:
+                    for st in sec["rows"]:
+                        r += 1
+                        ws.cell(row=r, column=1, value=st.get("plan_no"))
+                        seen(1, str(st.get("plan_no", "")))
+                        lines = 1
+                        for i, (key, _head, flds, fmt) in enumerate(cols, start=2):
+                            if key == "shape":
+                                v = _slip_shape(st.get("shape_display"))
+                            elif key == "cps":
+                                v = _cps_text(st, flds)
+                            elif key == "remarks":
+                                v = _clean_remarks(st.get("remarks"))
+                                lines = max(lines, min(3, -(-len(v) // SLIP_REMARKS_W)))
+                            else:
+                                v = st.get(flds[0])
+                            cell = ws.cell(row=r, column=i, value=v if v is not None else "—")
+                            if fmt and v is not None:
+                                cell.number_format = fmt
+                            text = _slip_text(v, fmt)
+                            seen(i, text[:SLIP_REMARKS_W] if key == "remarks" else text)
+                        for i in range(1, ncols + 1):
+                            cell = ws.cell(row=r, column=i)
+                            cell.border = box
+                            cell.alignment = center
+                            cell.font = font
+                        if remarks_col:
+                            ws.cell(row=r, column=remarks_col).alignment = Alignment(
+                                horizontal="center", vertical="center", wrap_text=True)
+                        ws.row_dimensions[r].height = SLIP_ROW_H * lines
+
+                    if sec["total_of"] is None:
+                        continue
+                    # this colour's total sits directly under its rows
                     r += 1
-                    ws.cell(row=r, column=1, value=st.get("plan_no"))
-                    seen(1, str(st.get("plan_no", "")))
-                    lines = 1
+                    name = f"Total {grp}"
+                    if sec["label"]:
+                        name += f" ({sec['label'].replace(' / ', '/')})"
+                    if is_final:
+                        name += " ★"          # final plan
+                    if best == (grp, sec["label"]):
+                        name += " ▲"          # highest total value
+                        best_rows.append(r)
+                    ws.cell(row=r, column=1, value=name)
+                    if not label_merged:
+                        seen(1, name)         # no room to spread: the Plan column must fit the label
                     for i, (key, _head, flds, fmt) in enumerate(cols, start=2):
-                        if key == "shape":
-                            v = _slip_shape(st.get("shape_display"))
-                        elif key == "cps":
-                            v = _cps_text(st, flds)
-                        elif key == "remarks":
-                            v = _clean_remarks(st.get("remarks"))
-                            lines = max(lines, min(3, -(-len(v) // SLIP_REMARKS_W)))
+                        if key not in SLIP_TOTAL_KEYS:
+                            continue
+                        vals = [st.get(flds[0]) for st in sec["total_of"]]
+                        if any(v is None for v in vals):
+                            total = "Pending"
                         else:
-                            v = st.get(flds[0])
-                        cell = ws.cell(row=r, column=i, value=v if v is not None else "—")
-                        if fmt and v is not None:
+                            total = round(sum(vals), 3 if key == "carat" else 2)
+                        cell = ws.cell(row=r, column=i, value=total)
+                        if fmt and total != "Pending":
                             cell.number_format = fmt
-                        text = _slip_text(v, fmt)
-                        seen(i, text[:SLIP_REMARKS_W] if key == "remarks" else text)
+                        seen(i, total if total == "Pending" else _slip_text(total, fmt))
                     for i in range(1, ncols + 1):
                         cell = ws.cell(row=r, column=i)
                         cell.border = box
                         cell.alignment = center
-                        cell.font = font
-                    if remarks_col:
-                        ws.cell(row=r, column=remarks_col).alignment = Alignment(
-                            horizontal="center", vertical="center", wrap_text=True)
-                    ws.row_dimensions[r].height = SLIP_ROW_H * lines
+                        cell.font = bold_font
+                        cell.fill = best_fill if r in best_rows else total_fill
+                    ws.row_dimensions[r].height = SLIP_ROW_H
+                    # the label spreads over the cells in front of the first total column
+                    if label_merged:
+                        ws.merge_cells(start_row=r, start_column=1, end_row=r, end_column=first_total - 1)
 
-                if sec["total_of"] is None:
-                    continue
-                # this colour's total sits directly under its rows
-                r += 1
-                name = f"Total {grp}"
-                if sec["label"]:
-                    name += f" ({sec['label'].replace(' / ', '/')})"
+                # the final plan is shaded green
                 if is_final:
-                    name += " ★"          # final plan
-                if best == (grp, sec["label"]):
-                    name += " ▲"          # highest total value
-                    best_rows.append(r)
-                ws.cell(row=r, column=1, value=name)
-                if not label_merged:
-                    seen(1, name)         # no room to spread: the Plan column must fit the label
-                for i, (key, _head, flds, fmt) in enumerate(cols, start=2):
-                    if key not in SLIP_TOTAL_KEYS:
-                        continue
-                    vals = [st.get(flds[0]) for st in sec["total_of"]]
-                    if any(v is None for v in vals):
-                        total = "Pending"
-                    else:
-                        total = round(sum(vals), 3 if key == "carat" else 2)
-                    cell = ws.cell(row=r, column=i, value=total)
-                    if fmt and total != "Pending":
-                        cell.number_format = fmt
-                    seen(i, total if total == "Pending" else _slip_text(total, fmt))
-                for i in range(1, ncols + 1):
-                    cell = ws.cell(row=r, column=i)
-                    cell.border = box
-                    cell.alignment = center
-                    cell.font = bold_font
-                    cell.fill = best_fill if r in best_rows else total_fill
-                ws.row_dimensions[r].height = SLIP_ROW_H
-                # the label spreads over the cells in front of the first total column
-                if label_merged:
-                    ws.merge_cells(start_row=r, start_column=1, end_row=r, end_column=first_total - 1)
+                    for rr in range(block_start, r + 1):
+                        if rr in best_rows:
+                            continue   # the highest total stays amber
+                        for i in range(1, ncols + 1):
+                            cell = ws.cell(row=rr, column=i)
+                            if type(cell).__name__ != "MergedCell":
+                                cell.fill = final_fill
+        return r, longest
 
-            # the final plan is shaded green
-            if is_final:
-                for rr in range(block_start, r + 1):
-                    if rr in best_rows:
-                        continue   # the highest total stays amber
-                    for i in range(1, ncols + 1):
-                        cell = ws.cell(row=rr, column=i)
-                        if type(cell).__name__ != "MergedCell":
-                            cell.fill = final_fill
-
-    # every column is exactly as wide as its longest text (so a value is never cut off)
+    # pass 1 measures the columns; pass 2 writes the real sheet with the right page breaks
+    _, longest = render(Workbook().active)
     widths = [_slip_units(n) for n in longest]
+    content_px = sum(int(w * 7 + 5) for w in widths)
+    content_in = content_px / 96
+    # 4 x 6 is always portrait; other papers turn sideways only if the columns do not fit across
+    landscape = paper_key != "4x6" and content_in > min(page_w, page_h) - 2 * SLIP_MARGIN
+    sheet_w, sheet_h = (page_h, page_w) if landscape else (page_w, page_h)
+    # Excel shrinks the slip to the page width: work out how many points of sheet fit on a page
+    scale = min(1.0, (sheet_w - 2 * SLIP_MARGIN) * 72 / (content_px * 0.75))
+    capacity = (sheet_h - 2 * SLIP_MARGIN) * 72 / scale * SLIP_PAGE_SAFETY
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = _sheet_title(wb, ws, packet_no) if packet_no else "Slips"
+    r, _ = render(ws, capacity)
     for i, w in enumerate(widths, start=1):
         ws.column_dimensions[get_column_letter(i)].width = w
 
     # print setup: small margins, fits the page width
-    content_in = sum(int(w * 7 + 5) for w in widths) / 96
-    landscape = paper_key != "4x6" and content_in > min(page_w, page_h) - 2 * SLIP_MARGIN
     ws.print_area = f"A1:{last_col}{r}"
     ws.page_setup.orientation = "landscape" if landscape else "portrait"
     if paper_code:
