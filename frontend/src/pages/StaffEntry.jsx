@@ -38,7 +38,7 @@ const FLUORESCENCE = ["NON", "FNT", "MED", "STG"];
 const LABS = ["GIA", "IGI", "HRD"];
 
 // The planners - fixed names, chosen from a list (not typed)
-const PLANNERS = ["RONAKBHAI", "DIXITBHAI", "PINKESHBHAI", "VANSH"];
+const PLANNERS = ["RONAKBHAI", "DIXITBHAI", "PINKESHBHAI"];
 
 // Single colours, then two-colour ranges (a range makes one row per colour).
 const SINGLE_COLORS = ["D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N"];
@@ -60,6 +60,18 @@ const composePacket = (rough, main) => {
 const selectClass =
   "mt-2 w-full border-b border-white/20 bg-transparent py-2 text-sm text-white focus:border-gold focus:outline-none [&>option]:bg-black";
 const labelClass = "font-mono text-[10px] uppercase tracking-[0.25em] text-zinc-500";
+
+// when an entry was made, e.g. "22 Oct 2026, 11:33 AM"
+const fmtDate = (iso) =>
+  iso
+    ? new Date(iso).toLocaleString([], {
+        day: "2-digit",
+        month: "short",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+      })
+    : "—";
 
 export default function StaffEntry() {
   const { user, logout } = useAuth();
@@ -210,8 +222,11 @@ export default function StaffEntry() {
     activePacket.current = "";
     setForm({ ...EMPTY, shapeLabel: "Round" });
   };
+  // only the packet being added is shown below the form (the packet typed in the form)
+  const currentPacket = form.packet_no.trim() ? composePacket(form.rough_name, form.packet_no) : "";
+  const packetItems = currentPacket ? items.filter((s) => s.packet_no === currentPacket) : [];
   const myPlans = [
-    ...new Map(items.filter(canDelete).map((s) => [`${s.packet_no}||${s.plan_no}`, s])).values(),
+    ...new Map(packetItems.filter(canDelete).map((s) => [`${s.packet_no}||${s.plan_no}`, s])).values(),
   ];
 
   // rough names already used, offered as suggestions while typing
@@ -398,16 +413,21 @@ export default function StaffEntry() {
         </div>
       )}
 
-      <div className="mt-12 overflow-x-auto border border-white/10" data-testid="staff-entry-table">
+      <p className="mt-12 font-mono text-[11px] uppercase tracking-[0.25em] text-gold" data-testid="staff-entries-title">
+        {currentPacket
+          ? `Packet ${currentPacket} · ${packetItems.length} stone${packetItems.length === 1 ? "" : "s"}`
+          : "Packet entries"}
+      </p>
+      <div className="mt-4 overflow-x-auto border border-white/10" data-testid="staff-entry-table">
         <table className="w-full text-left text-sm">
           <thead>
             <tr className="border-b border-white/10 font-mono text-[10px] uppercase tracking-[0.25em] text-zinc-500">
               <th className="px-5 py-4">Packet</th><th className="px-5 py-4">Plan</th><th className="px-5 py-4">Shape</th>
-              <th className="px-5 py-4">Carat</th><th className="px-5 py-4">Color/Clarity</th><th className="px-5 py-4">Status</th><th className="px-5 py-4"></th>
+              <th className="px-5 py-4">Carat</th><th className="px-5 py-4">Color/Clarity</th><th className="px-5 py-4">Status</th><th className="px-5 py-4">Date</th><th className="px-5 py-4"></th>
             </tr>
           </thead>
           <tbody>
-            {items.map((s) => (
+            {packetItems.map((s) => (
               <tr key={s.quote_stone_id} className="border-b border-white/5 text-zinc-300" data-testid={`staff-row-${s.quote_stone_id}`}>
                 <td className="px-5 py-4 font-mono text-xs">{s.packet_no}</td>
                 <td className="px-5 py-4 font-mono text-xs">{s.plan_no}</td>
@@ -419,6 +439,7 @@ export default function StaffEntry() {
                     {s.status}
                   </span>
                 </td>
+                <td className="px-5 py-4 font-mono text-xs text-zinc-400">{fmtDate(s.created_at)}</td>
                 <td className="px-5 py-4">
                   {canDelete(s) && (
                     <div className="flex items-center gap-4">
@@ -441,8 +462,12 @@ export default function StaffEntry() {
                 </td>
               </tr>
             ))}
-            {items.length === 0 && (
-              <tr><td colSpan={7} className="px-5 py-10 text-center font-mono text-xs uppercase tracking-[0.2em] text-zinc-600">No stones added yet</td></tr>
+            {packetItems.length === 0 && (
+              <tr>
+                <td colSpan={8} className="px-5 py-10 text-center font-mono text-xs uppercase tracking-[0.2em] text-zinc-600">
+                  {currentPacket ? "No stones added to this packet yet" : "Enter the rough name and packet no to see its stones"}
+                </td>
+              </tr>
             )}
           </tbody>
         </table>
