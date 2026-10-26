@@ -636,8 +636,6 @@ export default function PricingDashboard() {
             <tr className="border-b border-white/10 font-mono text-[10px] uppercase tracking-[0.25em] text-zinc-500">
               <th className="px-5 py-4">Packet</th>
               <th className="px-3 py-4">Plan</th>
-              <th className="px-3 py-4">Added</th>
-              <th className="px-5 py-4">Planner</th>
               <th className="px-5 py-4">Rough wt</th>
               <th className="px-5 py-4">Shape</th>
               <th className="px-5 py-4">Carat</th>
@@ -655,6 +653,8 @@ export default function PricingDashboard() {
               <th className="px-5 py-4">Entered by</th>
               <th className="px-5 py-4">Priced by</th>
               <th className="px-5 py-4">Status</th>
+              <th className="px-5 py-4">Planner</th>
+              <th className="px-3 py-4">Added</th>
               <th className="px-5 py-4"></th>
             </tr>
           </thead>
@@ -678,13 +678,6 @@ export default function PricingDashboard() {
                     </span>
                   )}
                 </td>
-                <td
-                  className="whitespace-nowrap px-3 py-4 font-mono text-xs text-zinc-400"
-                  title={fmtDateTime(s.created_at)}
-                >
-                  {fmtDay(s.created_at)}
-                </td>
-                <td className="px-5 py-4 text-xs">{s.planner_name ?? "—"}</td>
                 <td className="px-5 py-4 font-mono text-xs">{s.rough_weight ?? "—"}</td>
                 <td className="px-5 py-4">{s.shape_display ?? s.shape}</td>
                 <td className="px-5 py-4 font-mono text-xs">{s.pol_cts?.toFixed(2)}</td>
@@ -733,6 +726,13 @@ export default function PricingDashboard() {
                     {s.status}
                   </span>
                 </td>
+                <td className="px-5 py-4 text-xs">{s.planner_name ?? "—"}</td>
+                <td
+                  className="whitespace-nowrap px-3 py-4 font-mono text-xs text-zinc-400"
+                  title={fmtDateTime(s.created_at)}
+                >
+                  {fmtDay(s.created_at)}
+                </td>
                 <td className="px-5 py-4">
                   <button
                     onClick={() => deleteStone(s)}
@@ -756,7 +756,7 @@ export default function PricingDashboard() {
                 }`}
                 data-testid={`pricing-total-${g.key}-${i}`}
               >
-                <td colSpan={6} className="px-5 py-3 uppercase tracking-[0.15em]">
+                <td colSpan={4} className="px-5 py-3 uppercase tracking-[0.15em]">
                   Total · Plan {g.plans.join(" + ")}
                   {t.label ? ` · colour ${t.label}` : ""}
                   {g.isFinal ? " ★ FINAL" : ""}
@@ -767,7 +767,7 @@ export default function PricingDashboard() {
                 <td className="px-5 py-3 text-gold">{t.pending ? "Pending" : fmt(t.gross)}</td>
                 <td className="px-5 py-3">{t.pending ? "—" : fmt(t.labour)}</td>
                 <td className="px-5 py-3 text-emerald-400">{t.pending ? "Pending" : fmt(t.net)}</td>
-                <td colSpan={4} className="px-5 py-3"></td>
+                <td colSpan={6} className="px-5 py-3"></td>
               </tr>
             ))}
               </Fragment>
