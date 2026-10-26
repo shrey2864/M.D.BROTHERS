@@ -1714,6 +1714,7 @@ async def admin_delete_portal_user(user_id: str, user: dict = Depends(require_ad
 
 GT7_COLUMNS = [
     ("packet_no", "PacketNo"), ("rough_name", "RoughName"), ("plan_no", "PlanNo"),
+    ("added_on", "Added"),
     ("shape_display", "Shape"),
     ("pol_cts", "PolCts"), ("color", "RefColor"), ("color_range", "ColourRange"),
     ("clarity", "RefPurity"),
@@ -1738,6 +1739,17 @@ async def attach_user_names(items: list) -> list:
         i["entered_by"] = names.get(cb, "(deleted user)") if cb else None
         i["priced_by_name"] = names.get(pb, "(deleted user)") if pb else None
     return items
+
+
+LOCAL_TZ = timezone(timedelta(hours=5, minutes=30))   # India time
+
+
+def _added_date(iso):
+    """The day a stone was entered (India time), as a date; None if unknown."""
+    try:
+        return datetime.fromisoformat(iso).astimezone(LOCAL_TZ).date()
+    except Exception:
+        return None
 
 
 def _cps_text(stone: dict, fields=("cut", "polish", "symmetry")) -> str:
@@ -1885,6 +1897,7 @@ async def export_quote_stones_excel(packet_no: Optional[str] = None, user: dict 
     items = [with_computed_pricing(i) for i in items]
     for i in items:   # Cut / Polish / Symmetry share one column, e.g. "EX EX VG"
         i["cps"] = _cps_text(i)
+        i["added_on"] = _added_date(i.get("created_at"))
         i["remarks"] = _clean_remarks(i.get("remarks"))
     await attach_user_names(items)
     items.sort(key=stone_sort_key)
@@ -1916,6 +1929,7 @@ async def export_quote_stones_excel(packet_no: Optional[str] = None, user: dict 
         ws[f"{GROSS}{r}"].number_format = money
         ws[f"{NET}{r}"].number_format = money
         ws[f"{DISC}{r}"].fill = input_fill
+        ws[f"{L['added_on']}{r}"].number_format = "dd-mmm-yy"
         return r
 
     wb = Workbook()
@@ -1932,6 +1946,10 @@ async def export_quote_stones_excel(packet_no: Optional[str] = None, user: dict 
         banner = f"ESTIMATE      Packet No: {pkt}"
         if rough is not None:
             banner += f"      Rough Weight: {rough}"
+        days = sorted({st["added_on"] for st in pkt_items if st.get("added_on")})
+        if days:
+            first_day, last_day = days[0].strftime("%d-%b-%Y"), days[-1].strftime("%d-%b-%Y")
+            banner += f"      Date: {first_day}" + ("" if first_day == last_day else f" to {last_day}")
         ws["A1"] = banner
         ws["A1"].font = Font(size=14, bold=True)
         ws.append([])                                   # row 2 stays empty
