@@ -621,7 +621,7 @@ export default function PricingDashboard() {
           <thead>
             <tr className="border-b border-white/10 font-mono text-[10px] uppercase tracking-[0.25em] text-zinc-500">
               <th className="px-5 py-4">Packet</th>
-              <th className="px-5 py-4">Plan</th>
+              <th className="px-3 py-4">Plan</th>
               <th className="px-5 py-4">Planner</th>
               <th className="px-5 py-4">Rough wt</th>
               <th className="px-5 py-4">Shape</th>
@@ -654,12 +654,11 @@ export default function PricingDashboard() {
                 className={`border-b border-white/5 text-zinc-300 ${s.is_final ? "bg-emerald-500/10" : ""}`}
                 data-testid={`pricing-row-${s.quote_stone_id}`}
               >
-                <td className="px-5 py-4 font-mono text-xs">{s.packet_no}</td>
-                <td className="px-5 py-4 font-mono text-xs">
+                <td className="whitespace-nowrap px-3 py-4 font-mono text-xs">
                   {s.plan_no}
                   {s.is_final && (
-                    <span className="ml-2 border border-emerald-400 px-1.5 py-0.5 text-[9px] uppercase tracking-[0.15em] text-emerald-300">
-                      Final
+                    <span className="ml-1 text-emerald-300" title="Final plan">
+                      ★
                     </span>
                   )}
                 </td>
