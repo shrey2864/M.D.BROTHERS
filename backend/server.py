@@ -2069,9 +2069,6 @@ SLIP_LANDSCAPE_PAPERS = ("4x6",)
 # these columns change with the colour, so they are repeated side by side for each colour
 SLIP_COLOUR_KEYS = ("color", "rapaport", "discount", "gross", "net")
  
-}
-
-
 def _slip_text(v, fmt) -> str:
     """The text a cell will show (used to give every column exactly the width it needs)."""
     if v is None:
