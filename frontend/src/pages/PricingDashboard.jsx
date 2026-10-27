@@ -33,8 +33,8 @@ const SLIP_DEFAULT = [
 ];
 
 // table cells: normal readable size; the columns after Gross scroll to the side
-const TH = "px-3 py-4";
-const TD = "px-3 py-3";
+const TH = "px-4 py-4";
+const TD = "px-4 py-3.5";
 
 // when staff entered a stone: "22 Oct 2026" (the time shows when you hold the mouse over it)
 const fmtDay = (iso) =>
@@ -637,9 +637,9 @@ export default function PricingDashboard() {
       </p>
 
       <div className="mt-4 overflow-x-auto border border-white/10" data-testid="pricing-table">
-        <table className="w-full text-left text-sm [&_td]:whitespace-nowrap [&_th]:whitespace-nowrap">
+        <table className="w-full text-left text-base [&_td]:whitespace-nowrap [&_th]:whitespace-nowrap">
           <thead>
-            <tr className="border-b border-white/10 font-mono text-[10px] uppercase tracking-[0.2em] text-zinc-500">
+            <tr className="border-b border-white/10 font-mono text-xs uppercase tracking-[0.12em] text-zinc-500">
               <th className={TH}>Packet</th>
               <th className={TH}>Plan</th>
               <th className={TH}>Rough wt</th>
@@ -676,8 +676,8 @@ export default function PricingDashboard() {
                         className={`border-b border-white/5 text-zinc-300 ${s.is_final ? "bg-emerald-500/10" : ""}`}
                         data-testid={`pricing-row-${s.quote_stone_id}`}
                       >
-                        <td className={`${TD} font-mono text-xs`}>{s.packet_no}</td>
-                        <td className={`${TD} whitespace-nowrap font-mono text-xs`}>
+                        <td className={`${TD} font-mono text-[15px]`}>{s.packet_no}</td>
+                        <td className={`${TD} whitespace-nowrap font-mono text-[15px]`}>
                           {s.plan_no}
                           {s.is_final && (
                             <span className="ml-1 text-emerald-300" title="Final plan">
@@ -685,22 +685,22 @@ export default function PricingDashboard() {
                             </span>
                           )}
                         </td>
-                        <td className={`${TD} font-mono text-xs`}>{s.rough_weight ?? "—"}</td>
+                        <td className={`${TD} font-mono text-[15px]`}>{s.rough_weight ?? "—"}</td>
                         <td className={TD}>{s.shape_display ?? s.shape}</td>
-                        <td className={`${TD} font-mono text-xs`}>{s.pol_cts?.toFixed(2)}</td>
-                        <td className={`${TD} whitespace-nowrap font-mono text-xs`}>
+                        <td className={`${TD} font-mono text-[15px]`}>{s.pol_cts?.toFixed(2)}</td>
+                        <td className={`${TD} whitespace-nowrap font-mono text-[15px]`}>
                           {s.color}
                           {s.color_range ? ` (${s.color_range})` : ""} • {s.clarity}
                         </td>
-                        <td className={`${TD} whitespace-nowrap font-mono text-xs`}>
+                        <td className={`${TD} whitespace-nowrap font-mono text-[15px]`}>
                           {[s.cut, s.polish, s.symmetry].filter(Boolean).join(" ") || "—"}
                         </td>
-                        <td className={`${TD} font-mono text-xs`}>{s.fluorescence ?? "—"}</td>
-                        <td className={`${TD} font-mono text-xs`}>{s.lab ?? "—"}</td>
-                        <td className={`${TD} font-mono text-xs`}>{s.table_pct ?? "—"}</td>
-                        <td className={`${TD} font-mono text-xs`}>{s.td ?? "—"}</td>
-                        <td className={`${TD} font-mono text-xs`}>{s.ratio ?? "—"}</td>
-                        <td className={`${TD} font-mono text-xs`}>{s.rapaport_rate ?? "—"}</td>
+                        <td className={`${TD} font-mono text-[15px]`}>{s.fluorescence ?? "—"}</td>
+                        <td className={`${TD} font-mono text-[15px]`}>{s.lab ?? "—"}</td>
+                        <td className={`${TD} font-mono text-[15px]`}>{s.table_pct ?? "—"}</td>
+                        <td className={`${TD} font-mono text-[15px]`}>{s.td ?? "—"}</td>
+                        <td className={`${TD} font-mono text-[15px]`}>{s.ratio ?? "—"}</td>
+                        <td className={`${TD} font-mono text-[15px]`}>{s.rapaport_rate ?? "—"}</td>
                         <td className={TD}>
                           <div className="flex items-center gap-1">
                             <input
@@ -714,36 +714,36 @@ export default function PricingDashboard() {
                               onKeyDown={(e) => {
                                 if (e.key === "Enter" && !saving[s.quote_stone_id]) setDiscount(s.quote_stone_id);
                               }}
-                              className="w-16 border-b border-white/20 bg-transparent py-1 font-mono text-xs text-white focus:border-gold focus:outline-none"
+                              className="w-20 border-b border-white/20 bg-transparent py-1 font-mono text-[15px] text-white focus:border-gold focus:outline-none"
                               data-testid={`pricing-discount-input-${s.quote_stone_id}`}
                             />
                             <button
                               onClick={() => setDiscount(s.quote_stone_id)}
                               disabled={saving[s.quote_stone_id]}
                               data-testid={`pricing-discount-save-${s.quote_stone_id}`}
-                              className="font-mono text-[10px] uppercase tracking-[0.15em] text-gold hover:underline disabled:opacity-50"
+                              className="font-mono text-xs uppercase tracking-[0.15em] text-gold hover:underline disabled:opacity-50"
                             >
                               Set
                             </button>
                           </div>
                         </td>
-                        <td className={`${TD} font-mono text-xs text-gold`}>{fmt(s.gross_value)}</td>
-                        <td className={`${TD} font-mono text-xs`}>{fmt(s.labour)}</td>
-                        <td className={`${TD} font-mono text-xs text-emerald-400`}>{fmt(s.net_value)}</td>
-                        <td className={`${TD} text-xs`}>{s.entered_by ?? "—"}</td>
-                        <td className={`${TD} text-xs`}>{s.priced_by_name ?? "—"}</td>
+                        <td className={`${TD} font-mono text-[15px] text-gold`}>{fmt(s.gross_value)}</td>
+                        <td className={`${TD} font-mono text-[15px]`}>{fmt(s.labour)}</td>
+                        <td className={`${TD} font-mono text-[15px] text-emerald-400`}>{fmt(s.net_value)}</td>
+                        <td className={`${TD} text-[15px]`}>{s.entered_by ?? "—"}</td>
+                        <td className={`${TD} text-[15px]`}>{s.priced_by_name ?? "—"}</td>
                         <td className={TD}>
                           <span
-                            className={`font-mono text-[10px] uppercase tracking-[0.15em] ${
+                            className={`font-mono text-xs uppercase tracking-[0.15em] ${
                               s.status === "priced" ? "text-emerald-400" : "text-gold"
                             }`}
                           >
                             {s.status}
                           </span>
                         </td>
-                        <td className={`${TD} text-xs`}>{s.planner_name ?? "—"}</td>
+                        <td className={`${TD} text-[15px]`}>{s.planner_name ?? "—"}</td>
                         <td
-                          className={`${TD} whitespace-nowrap font-mono text-xs text-zinc-400`}
+                          className={`${TD} whitespace-nowrap font-mono text-[15px] text-zinc-400`}
                           title={fmtDateTime(s.created_at)}
                         >
                           {fmtDay(s.created_at)}
@@ -752,7 +752,7 @@ export default function PricingDashboard() {
                           <button
                             onClick={() => deleteStone(s)}
                             data-testid={`pricing-delete-${s.quote_stone_id}`}
-                            className="font-mono text-[10px] uppercase tracking-[0.15em] text-red-400 hover:underline"
+                            className="font-mono text-xs uppercase tracking-[0.15em] text-red-400 hover:underline"
                           >
                             Delete
                           </button>
@@ -762,7 +762,7 @@ export default function PricingDashboard() {
                     {(sec.total ? [sec.total] : []).map((t, i) => (
                       <tr
                         key={`${g.key}-total-${i}`}
-                        className={`border-b border-white/10 font-mono text-xs ${
+                        className={`border-b border-white/10 font-mono text-[15px] ${
                           bestTotalId === `${g.key}-${si}`
                             ? "bg-amber-500/30 text-amber-200"
                             : g.isFinal
@@ -771,18 +771,18 @@ export default function PricingDashboard() {
                         }`}
                         data-testid={`pricing-total-${g.key}-${i}`}
                       >
-                        <td colSpan={4} className="!whitespace-normal px-3 py-3 uppercase tracking-[0.15em]">
+                        <td colSpan={4} className="!whitespace-normal px-4 py-3.5 uppercase tracking-[0.15em]">
                           Total · Plan {g.plans.join(" + ")}
                           {t.label ? ` · colour ${t.label}` : ""}
                           {g.isFinal ? " ★ FINAL" : ""}
                           {bestTotalId === `${g.key}-${si}` ? " ▲ HIGHEST" : ""}
                         </td>
-                        <td className="px-3 py-3">{t.carat.toFixed(2)}</td>
-                        <td colSpan={9} className="px-3 py-3"></td>
-                        <td className="px-3 py-3 text-gold">{t.pending ? "Pending" : fmt(t.gross)}</td>
-                        <td className="px-3 py-3">{t.pending ? "—" : fmt(t.labour)}</td>
-                        <td className="px-3 py-3 text-emerald-400">{t.pending ? "Pending" : fmt(t.net)}</td>
-                        <td colSpan={6} className="px-3 py-3"></td>
+                        <td className="px-4 py-3.5">{t.carat.toFixed(2)}</td>
+                        <td colSpan={9} className="px-4 py-3.5"></td>
+                        <td className="px-4 py-3.5 text-gold">{t.pending ? "Pending" : fmt(t.gross)}</td>
+                        <td className="px-4 py-3.5">{t.pending ? "—" : fmt(t.labour)}</td>
+                        <td className="px-4 py-3.5 text-emerald-400">{t.pending ? "Pending" : fmt(t.net)}</td>
+                        <td colSpan={6} className="px-4 py-3.5"></td>
                       </tr>
                     ))}
                   </Fragment>
@@ -791,7 +791,7 @@ export default function PricingDashboard() {
             ))}
             {items.length === 0 && (
               <tr>
-                <td colSpan={23} className="px-5 py-10 text-center font-mono text-xs uppercase tracking-[0.2em] text-zinc-600">
+                <td colSpan={23} className="px-5 py-10 text-center font-mono text-[15px] uppercase tracking-[0.2em] text-zinc-600">
                   No stones in this packet
                 </td>
               </tr>
