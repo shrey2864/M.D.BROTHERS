@@ -32,6 +32,10 @@ const SLIP_DEFAULT = [
   "cut", "polish", "symmetry", "discount", "net",
 ];
 
+// compact table cells (keeps every column short)
+const TH = "px-2 py-3";
+const TD = "px-2 py-2";
+
 // when staff entered a stone: "22 Oct 2026" (the time shows when you hold the mouse over it)
 const fmtDay = (iso) =>
   iso ? new Date(iso).toLocaleDateString([], { day: "2-digit", month: "short", year: "numeric" }) : "—";
@@ -54,9 +58,9 @@ export default function PricingDashboard() {
   const [showSlip, setShowSlip] = useState(false);
   const [slipPaper, setSlipPaper] = useState(() => {
     try {
-      return localStorage.getItem("slipPaper") || "4x6";
+      return localStorage.getItem("slipPaper") || "4x8";
     } catch (e) {
-      return "4x6";
+      return "4x8";
     }
   });
   const [slipFields, setSlipFields] = useState(() => {
@@ -238,7 +242,8 @@ export default function PricingDashboard() {
     <div className="mt-6 border border-white/10 bg-[#0C1E30] p-6" data-testid="slip-options">
       <p className="font-mono text-[11px] uppercase tracking-[0.25em] text-gold">What to print on the slip</p>
       <p className="mt-2 text-xs text-zinc-500">
-        Plan no is always printed, with a total row for each plan. Tick what else you want.
+        Plan no is always printed, with a total row for each plan. Plans are listed from the highest
+        total to the lowest, and colour options sit side by side on one line. Tick what else you want.
       </p>
       <div className="mt-5 grid gap-x-8 gap-y-3 sm:grid-cols-2 lg:grid-cols-4">
         {SLIP_OPTIONS.map(([key, label]) => (
@@ -299,10 +304,11 @@ export default function PricingDashboard() {
             data-testid="slip-paper-select"
             className="border-b border-white/20 bg-transparent py-1 text-sm text-white focus:border-gold focus:outline-none [&>option]:bg-black"
           >
+            <option value="4x8">4 × 8 inch landscape (roll printer)</option>
+            <option value="4x6">4 × 6 inch portrait (packet size)</option>
             <option value="a4">A4 (normal)</option>
             <option value="a5">A5 (small)</option>
             <option value="a6">A6 (tiny)</option>
-            <option value="4x6">4 × 6 inch portrait (packet size)</option>
           </select>
         </label>
         <button
@@ -631,152 +637,161 @@ export default function PricingDashboard() {
       </p>
 
       <div className="mt-4 overflow-x-auto border border-white/10" data-testid="pricing-table">
-        <table className="w-full text-left text-sm">
+        <table className="w-full text-left text-xs">
           <thead>
-            <tr className="border-b border-white/10 font-mono text-[10px] uppercase tracking-[0.25em] text-zinc-500">
-              <th className="px-5 py-4">Packet</th>
-              <th className="px-3 py-4">Plan</th>
-              <th className="px-5 py-4">Rough wt</th>
-              <th className="px-5 py-4">Shape</th>
-              <th className="px-5 py-4">Carat</th>
-              <th className="px-5 py-4">Color/Clarity</th>
-              <th className="px-5 py-4">C/P/S</th>
-              <th className="px-5 py-4">Fls</th>
-              <th className="px-5 py-4">Table %</th>
-              <th className="px-5 py-4">TD</th>
-              <th className="px-5 py-4">Ratio</th>
-              <th className="px-5 py-4">Rapaport</th>
-              <th className="px-5 py-4">Discount %</th>
-              <th className="px-5 py-4">Gross</th>
-              <th className="px-5 py-4">Labour</th>
-              <th className="px-5 py-4">Net</th>
-              <th className="px-5 py-4">Entered by</th>
-              <th className="px-5 py-4">Priced by</th>
-              <th className="px-5 py-4">Status</th>
-              <th className="px-5 py-4">Planner</th>
-              <th className="px-3 py-4">Added</th>
-              <th className="px-5 py-4"></th>
+            <tr className="border-b border-white/10 font-mono text-[9px] uppercase tracking-[0.1em] text-zinc-500">
+              <th className={TH}>Packet</th>
+              <th className={TH}>Plan</th>
+              <th className={TH}>Rough</th>
+              <th className={TH}>Shape</th>
+              <th className={TH}>Carat</th>
+              <th className={TH}>Col/Clar</th>
+              <th className={TH}>C/P/S</th>
+              <th className={TH}>Fls</th>
+              <th className={TH}>Lab</th>
+              <th className={TH}>Tbl%</th>
+              <th className={TH}>TD</th>
+              <th className={TH}>Ratio</th>
+              <th className={TH}>Rap</th>
+              <th className={TH}>Disc%</th>
+              <th className={TH}>Gross</th>
+              <th className={TH}>Labour</th>
+              <th className={TH}>Net</th>
+              <th className={TH}>Entered</th>
+              <th className={TH}>Priced</th>
+              <th className={TH}>Status</th>
+              <th className={TH}>Planner</th>
+              <th className={TH}>Added</th>
+              <th className={TH}></th>
             </tr>
           </thead>
           <tbody>
             {groups.map((g) => (
               <Fragment key={g.key}>
-            {g.sections.map((sec, si) => (
-              <Fragment key={`${g.key}-${si}`}>
-            {sec.rows.map((s) => (
-              <tr
-                key={s.quote_stone_id}
-                className={`border-b border-white/5 text-zinc-300 ${s.is_final ? "bg-emerald-500/10" : ""}`}
-                data-testid={`pricing-row-${s.quote_stone_id}`}
-              >
-                <td className="px-5 py-4 font-mono text-xs">{s.packet_no}</td>
-                <td className="whitespace-nowrap px-3 py-4 font-mono text-xs">
-                  {s.plan_no}
-                  {s.is_final && (
-                    <span className="ml-1 text-emerald-300" title="Final plan">
-                      ★
-                    </span>
-                  )}
-                </td>
-                <td className="px-5 py-4 font-mono text-xs">{s.rough_weight ?? "—"}</td>
-                <td className="px-5 py-4">{s.shape_display ?? s.shape}</td>
-                <td className="px-5 py-4 font-mono text-xs">{s.pol_cts?.toFixed(2)}</td>
-                <td className="px-5 py-4 font-mono text-xs">{s.color}{s.color_range ? ` (${s.color_range})` : ""} • {s.clarity}</td>
-                <td className="px-5 py-4 font-mono text-xs">
-                  {[s.cut, s.polish, s.symmetry].filter(Boolean).join(" ") || "—"}
-                </td>
-                <td className="px-5 py-4 font-mono text-xs">{s.fluorescence ?? "—"}</td>
-                <td className="px-5 py-4 font-mono text-xs">{s.table_pct ?? "—"}</td>
-                <td className="px-5 py-4 font-mono text-xs">{s.td ?? "—"}</td>
-                <td className="px-5 py-4 font-mono text-xs">{s.ratio ?? "—"}</td>
-                <td className="px-5 py-4 font-mono text-xs">{s.rapaport_rate ?? "—"}</td>
-                <td className="px-5 py-4">
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="number"
-                      step="0.1"
-                      min="0"
-                      max="100"
-                      placeholder={s.discount_percent ?? "e.g. 45"}
-                      value={discounts[s.quote_stone_id] ?? ""}
-                      onChange={(e) => setDiscounts((d) => ({ ...d, [s.quote_stone_id]: e.target.value }))}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter" && !saving[s.quote_stone_id]) setDiscount(s.quote_stone_id);
-                      }}
-                      className="w-20 border-b border-white/20 bg-transparent py-1 font-mono text-xs text-white focus:border-gold focus:outline-none"
-                      data-testid={`pricing-discount-input-${s.quote_stone_id}`}
-                    />
-                    <button
-                      onClick={() => setDiscount(s.quote_stone_id)}
-                      disabled={saving[s.quote_stone_id]}
-                      data-testid={`pricing-discount-save-${s.quote_stone_id}`}
-                      className="font-mono text-[10px] uppercase tracking-[0.15em] text-gold hover:underline disabled:opacity-50"
-                    >
-                      Set
-                    </button>
-                  </div>
-                </td>
-                <td className="px-5 py-4 font-mono text-xs text-gold">{fmt(s.gross_value)}</td>
-                <td className="px-5 py-4 font-mono text-xs">{fmt(s.labour)}</td>
-                <td className="px-5 py-4 font-mono text-xs text-emerald-400">{fmt(s.net_value)}</td>
-                <td className="px-5 py-4 text-xs">{s.entered_by ?? "—"}</td>
-                <td className="px-5 py-4 text-xs">{s.priced_by_name ?? "—"}</td>
-                <td className="px-5 py-4">
-                  <span className={`font-mono text-[10px] uppercase tracking-[0.15em] ${s.status === "priced" ? "text-emerald-400" : "text-gold"}`}>
-                    {s.status}
-                  </span>
-                </td>
-                <td className="px-5 py-4 text-xs">{s.planner_name ?? "—"}</td>
-                <td
-                  className="whitespace-nowrap px-3 py-4 font-mono text-xs text-zinc-400"
-                  title={fmtDateTime(s.created_at)}
-                >
-                  {fmtDay(s.created_at)}
-                </td>
-                <td className="px-5 py-4">
-                  <button
-                    onClick={() => deleteStone(s)}
-                    data-testid={`pricing-delete-${s.quote_stone_id}`}
-                    className="font-mono text-[10px] uppercase tracking-[0.15em] text-red-400 hover:underline"
-                  >
-                    Delete
-                  </button>
-                </td>
-              </tr>
-            ))}
-            {(sec.total ? [sec.total] : []).map((t, i) => (
-              <tr
-                key={`${g.key}-total-${i}`}
-                className={`border-b border-white/10 font-mono text-xs ${
-                  bestTotalId === `${g.key}-${si}`
-                    ? "bg-amber-500/30 text-amber-200"
-                    : g.isFinal
-                    ? "bg-emerald-500/20 text-emerald-200"
-                    : "bg-white/5 text-zinc-200"
-                }`}
-                data-testid={`pricing-total-${g.key}-${i}`}
-              >
-                <td colSpan={4} className="px-5 py-3 uppercase tracking-[0.15em]">
-                  Total · Plan {g.plans.join(" + ")}
-                  {t.label ? ` · colour ${t.label}` : ""}
-                  {g.isFinal ? " ★ FINAL" : ""}
-                  {bestTotalId === `${g.key}-${si}` ? " ▲ HIGHEST" : ""}
-                </td>
-                <td className="px-5 py-3">{t.carat.toFixed(2)}</td>
-                <td colSpan={8} className="px-5 py-3"></td>
-                <td className="px-5 py-3 text-gold">{t.pending ? "Pending" : fmt(t.gross)}</td>
-                <td className="px-5 py-3">{t.pending ? "—" : fmt(t.labour)}</td>
-                <td className="px-5 py-3 text-emerald-400">{t.pending ? "Pending" : fmt(t.net)}</td>
-                <td colSpan={6} className="px-5 py-3"></td>
-              </tr>
-            ))}
-              </Fragment>
-            ))}
+                {g.sections.map((sec, si) => (
+                  <Fragment key={`${g.key}-${si}`}>
+                    {sec.rows.map((s) => (
+                      <tr
+                        key={s.quote_stone_id}
+                        className={`border-b border-white/5 text-zinc-300 ${s.is_final ? "bg-emerald-500/10" : ""}`}
+                        data-testid={`pricing-row-${s.quote_stone_id}`}
+                      >
+                        <td className={`${TD} font-mono text-[11px]`}>{s.packet_no}</td>
+                        <td className={`${TD} whitespace-nowrap font-mono text-[11px]`}>
+                          {s.plan_no}
+                          {s.is_final && (
+                            <span className="ml-1 text-emerald-300" title="Final plan">
+                              ★
+                            </span>
+                          )}
+                        </td>
+                        <td className={`${TD} font-mono text-[11px]`}>{s.rough_weight ?? "—"}</td>
+                        <td className={TD}>{s.shape_display ?? s.shape}</td>
+                        <td className={`${TD} font-mono text-[11px]`}>{s.pol_cts?.toFixed(2)}</td>
+                        <td className={`${TD} whitespace-nowrap font-mono text-[11px]`}>
+                          {s.color}
+                          {s.color_range ? ` (${s.color_range})` : ""} • {s.clarity}
+                        </td>
+                        <td className={`${TD} whitespace-nowrap font-mono text-[11px]`}>
+                          {[s.cut, s.polish, s.symmetry].filter(Boolean).join(" ") || "—"}
+                        </td>
+                        <td className={`${TD} font-mono text-[11px]`}>{s.fluorescence ?? "—"}</td>
+                        <td className={`${TD} font-mono text-[11px]`}>{s.lab ?? "—"}</td>
+                        <td className={`${TD} font-mono text-[11px]`}>{s.table_pct ?? "—"}</td>
+                        <td className={`${TD} font-mono text-[11px]`}>{s.td ?? "—"}</td>
+                        <td className={`${TD} font-mono text-[11px]`}>{s.ratio ?? "—"}</td>
+                        <td className={`${TD} font-mono text-[11px]`}>{s.rapaport_rate ?? "—"}</td>
+                        <td className={TD}>
+                          <div className="flex items-center gap-1">
+                            <input
+                              type="number"
+                              step="0.1"
+                              min="0"
+                              max="100"
+                              placeholder={s.discount_percent ?? "45"}
+                              value={discounts[s.quote_stone_id] ?? ""}
+                              onChange={(e) => setDiscounts((d) => ({ ...d, [s.quote_stone_id]: e.target.value }))}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter" && !saving[s.quote_stone_id]) setDiscount(s.quote_stone_id);
+                              }}
+                              className="w-12 border-b border-white/20 bg-transparent py-1 font-mono text-[11px] text-white focus:border-gold focus:outline-none"
+                              data-testid={`pricing-discount-input-${s.quote_stone_id}`}
+                            />
+                            <button
+                              onClick={() => setDiscount(s.quote_stone_id)}
+                              disabled={saving[s.quote_stone_id]}
+                              data-testid={`pricing-discount-save-${s.quote_stone_id}`}
+                              className="font-mono text-[9px] uppercase tracking-[0.1em] text-gold hover:underline disabled:opacity-50"
+                            >
+                              Set
+                            </button>
+                          </div>
+                        </td>
+                        <td className={`${TD} font-mono text-[11px] text-gold`}>{fmt(s.gross_value)}</td>
+                        <td className={`${TD} font-mono text-[11px]`}>{fmt(s.labour)}</td>
+                        <td className={`${TD} font-mono text-[11px] text-emerald-400`}>{fmt(s.net_value)}</td>
+                        <td className={`${TD} text-[11px]`}>{s.entered_by ?? "—"}</td>
+                        <td className={`${TD} text-[11px]`}>{s.priced_by_name ?? "—"}</td>
+                        <td className={TD}>
+                          <span
+                            className={`font-mono text-[9px] uppercase tracking-[0.1em] ${
+                              s.status === "priced" ? "text-emerald-400" : "text-gold"
+                            }`}
+                          >
+                            {s.status}
+                          </span>
+                        </td>
+                        <td className={`${TD} text-[11px]`}>{s.planner_name ?? "—"}</td>
+                        <td
+                          className={`${TD} whitespace-nowrap font-mono text-[11px] text-zinc-400`}
+                          title={fmtDateTime(s.created_at)}
+                        >
+                          {fmtDay(s.created_at)}
+                        </td>
+                        <td className={TD}>
+                          <button
+                            onClick={() => deleteStone(s)}
+                            data-testid={`pricing-delete-${s.quote_stone_id}`}
+                            className="font-mono text-[9px] uppercase tracking-[0.1em] text-red-400 hover:underline"
+                          >
+                            Del
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                    {(sec.total ? [sec.total] : []).map((t, i) => (
+                      <tr
+                        key={`${g.key}-total-${i}`}
+                        className={`border-b border-white/10 font-mono text-[11px] ${
+                          bestTotalId === `${g.key}-${si}`
+                            ? "bg-amber-500/30 text-amber-200"
+                            : g.isFinal
+                            ? "bg-emerald-500/20 text-emerald-200"
+                            : "bg-white/5 text-zinc-200"
+                        }`}
+                        data-testid={`pricing-total-${g.key}-${i}`}
+                      >
+                        <td colSpan={4} className="px-2 py-2 uppercase tracking-[0.1em]">
+                          Total · Plan {g.plans.join(" + ")}
+                          {t.label ? ` · colour ${t.label}` : ""}
+                          {g.isFinal ? " ★ FINAL" : ""}
+                          {bestTotalId === `${g.key}-${si}` ? " ▲ HIGHEST" : ""}
+                        </td>
+                        <td className="px-2 py-2">{t.carat.toFixed(2)}</td>
+                        <td colSpan={9} className="px-2 py-2"></td>
+                        <td className="px-2 py-2 text-gold">{t.pending ? "Pending" : fmt(t.gross)}</td>
+                        <td className="px-2 py-2">{t.pending ? "—" : fmt(t.labour)}</td>
+                        <td className="px-2 py-2 text-emerald-400">{t.pending ? "Pending" : fmt(t.net)}</td>
+                        <td colSpan={6} className="px-2 py-2"></td>
+                      </tr>
+                    ))}
+                  </Fragment>
+                ))}
               </Fragment>
             ))}
             {items.length === 0 && (
               <tr>
-                <td colSpan={22} className="px-5 py-10 text-center font-mono text-xs uppercase tracking-[0.2em] text-zinc-600">
+                <td colSpan={23} className="px-5 py-10 text-center font-mono text-xs uppercase tracking-[0.2em] text-zinc-600">
                   No stones in this packet
                 </td>
               </tr>
