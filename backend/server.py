@@ -1,4 +1,4 @@
-from dotenv import load_dotenv
+    from dotenv import load_dotenv
 from pathlib import Path
 import openpyxl
 from openpyxl.utils import get_column_letter
@@ -2063,7 +2063,12 @@ SLIP_PAPER = {
     "a4": (9, 8.27, 11.69),
     "a5": (11, 5.83, 8.27),
     "a6": (70, 4.13, 5.83),
-    "4x6": (None, 4.0, 6.0),
+    "4x6": (None, 4.0, 6.0),   # roll printer paper: now printed SIDEWAYS (landscape) and as long as needed
+}
+SLIP_LANDSCAPE_PAPERS = ("4x6",)
+# these columns change with the colour, so they are repeated side by side for each colour
+SLIP_COLOUR_KEYS = ("color", "rapaport", "discount", "gross", "net")
+ 
 }
 
 
@@ -2090,20 +2095,291 @@ def _slip_units(n_chars: int) -> float:
     return max(n_chars * 1.35 + 1.5, 4.5)
 
 
+def _slip_value(st: dict, key: str, flds: list):
+    if key == "shape":
+        return _slip_shape(st.get("shape_display"))
+    if key == "cps":
+        return _cps_text(st, flds)
+    if key == "remarks":
+        return _clean_remarks(st.get("remarks"))
+    return st.get(flds[0])
+
+
+def _plan_options(block: list) -> list:
+    """The colour options of one plan group, each with its own total.
+    No colour range -> one option. With ranges -> one option per colour row
+    (D rows, E rows ...), each including the single-colour stones."""
+    singles = [s for s in block if not s.get("color_range")]
+    ranges = [s for s in block if s.get("color_range")]
+
+    def make(idx, rows, label):
+        nets = [s.get("net_value") for s in rows]
+        grosses = [s.get("gross_value") for s in rows]
+        pending = any(v is None for v in nets) or any(v is None for v in grosses)
+        return {
+            "idx": idx,
+            "label": label,
+            "carat": round(sum(s.get("pol_cts") or 0 for s in rows), 3),
+            "gross": None if pending else round(sum(grosses), 2),
+            "net": None if pending else round(sum(nets), 2),
+        }
+
+    if not ranges:
+        return [make(0, singles, "")]
+    out = []
+    for k in sorted({(s.get("range_index") or 0) for s in ranges}):
+        chosen = [s for s in ranges if (s.get("range_index") or 0) == k]
+        label = "/".join(sorted({s.get("color") for s in chosen if s.get("color")}))
+        out.append(make(k, singles + chosen, label))
+    return out
+
+
+def _plan_lines(block: list) -> list:
+    """One printed line per stone. The two colour rows of a range stone (D-E)
+    become ONE line that holds both colours."""
+    lines, by_range = [], {}
+    ordered = sorted(
+        block,
+        key=lambda s: (str(s.get("plan_no", "")).upper(), s.get("created_at", ""), s.get("range_index") or 0),
+    )
+    for st in ordered:
+        if st.get("color_range"):
+            rid = st.get("range_id") or st.get("quote_stone_id")
+            idx = st.get("range_index") or 0
+            if rid in by_range:
+                by_range[rid]["by_idx"][idx] = st
+                continue
+            line = {"stone": st, "by_idx": {idx: st}}
+            by_range[rid] = line
+        else:
+            line = {"stone": st, "by_idx": None}
+        lines.append(line)
+    return lines
+
+
+def _write_slip_sheet(ws, pkt, stones, base_cols, rough, only_final, colour_note,
+                      paper_key, paper_code, page_w, page_h):
+    # ---- colour options side by side ----
+    idx_list = sorted({(s.get("range_index") or 0) for s in stones if s.get("color_range")}) or [0]
+    ngroups = len(idx_list)
+    pos_of = {idx: p for p, idx in enumerate(idx_list)}
+
+    # layout entry: (key, heading, stone fields, number format, colour group or None)
+    if ngroups == 1:
+        layout = [(k, h, f, fm, 0 if k in SLIP_COLOUR_KEYS else None) for k, h, f, fm in base_cols]
+    else:
+        static = [c for c in base_cols if c[0] not in SLIP_COLOUR_KEYS and c[0] != "remarks"]
+        colour = [c for c in base_cols if c[0] in SLIP_COLOUR_KEYS]
+        remarks = [c for c in base_cols if c[0] == "remarks"]
+        layout = [(k, h, f, fm, None) for k, h, f, fm in static]
+        for g in range(ngroups):
+            layout += [(k, h, f, fm, g) for k, h, f, fm in colour]
+        layout += [(k, h, f, fm, None) for k, h, f, fm in remarks]
+
+    # the first column of every colour group after the first gets a thick left line
+    group_starts = set()
+    prev_g = None
+    for i, c in enumerate(layout, start=2):
+        if c[4] is not None and c[4] != prev_g and c[4] > 0:
+            group_starts.add(i)
+        prev_g = c[4]
+
+    thin = Side(style="thin", color="000000")
+    thick = Side(style="medium", color="000000")
+    center = Alignment(horizontal="center", vertical="center", shrink_to_fit=True)
+    final_fill = PatternFill("solid", fgColor="C6E0B4")   # green = final plan
+    total_fill = PatternFill("solid", fgColor="262626")   # dark = plan total
+    best_fill = PatternFill("solid", fgColor="FFC000")    # amber = highest total
+    font = Font(name="Arial", size=SLIP_FONT, bold=False)
+    bold_font = Font(name="Arial", size=SLIP_FONT, bold=True)
+    total_font = Font(name="Arial", size=SLIP_FONT, bold=True, color="FFFFFF")
+    best_font = Font(name="Arial", size=SLIP_FONT, bold=True, color="000000")
+
+    def border_for(i):
+        return Border(left=thick if i in group_starts else thin, right=thin, top=thin, bottom=thin)
+
+    ncols = 1 + len(layout)
+    last_col = get_column_letter(ncols)
+    first_total = next((i for i, c in enumerate(layout, start=2) if c[0] in SLIP_TOTAL_KEYS), None)
+    label_merged = bool(first_total and first_total > 2)
+    remarks_col = next((i for i, c in enumerate(layout, start=2) if c[0] == "remarks"), None)
+
+    longest = [len("Plan")] + [len(c[1]) for c in layout]
+
+    def seen(col_idx, text):
+        longest[col_idx - 1] = max(longest[col_idx - 1], len(str(text)))
+
+    # ---- title ----
+    heading = f"ESTIMATE   ·   Packet {pkt}"
+    if rough is not None:
+        heading += f"   ·   Rough {rough}"
+    if only_final:
+        heading += "   ·   FINAL PLAN"
+        if colour_note:
+            shown = sorted({st.get("color") for st in stones if st.get("color_range") and st.get("color")})
+            if shown:
+                heading += f"   ·   colour {'/'.join(shown)}"
+    r = 1
+    ws.merge_cells(start_row=r, start_column=1, end_row=r, end_column=ncols)
+    tc = ws.cell(row=r, column=1, value=heading)
+    tc.font = Font(name="Arial", size=SLIP_TITLE, bold=True)
+    tc.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+    ws.row_dimensions[r].height = SLIP_ROW_H * 1.4
+    r += 1
+    ws.row_dimensions[r].height = 4
+    r += 1
+    for i, head in enumerate(["Plan"] + [c[1] for c in layout], start=1):
+        c = ws.cell(row=r, column=i, value=head)
+        c.font = bold_font
+        c.border = border_for(i)
+        c.alignment = center
+    ws.row_dimensions[r].height = SLIP_ROW_H
+    ws.print_title_rows = f"{r}:{r}"   # heading repeats if the roll is cut into pages
+
+    # ---- plans: highest total first, lowest last ----
+    blocks = []
+    for grp, block in groupby(stones, key=lambda s: plan_group_of(s.get("plan_no", ""))):
+        block = list(block)
+        opts = _plan_options(block)
+        nets = [o["net"] for o in opts if o["net"] is not None]
+        blocks.append({
+            "grp": grp,
+            "block": block,
+            "opts": opts,
+            "score": max(nets) if nets else -1,   # plans not fully priced go last
+            "is_final": any(s.get("is_final") for s in block),
+        })
+    blocks.sort(key=lambda b: (-b["score"], plan_group_sort_key(b["block"][0])))
+
+    # the plan option with the HIGHEST total value (needs two or more priced options)
+    cands = [(o["net"], b["grp"], o["idx"]) for b in blocks for o in b["opts"] if o["net"] is not None]
+    best = max(cands, key=lambda c: c[0])[1:] if len(cands) >= 2 else None
+
+    for b in blocks:
+        for line in _plan_lines(b["block"]):
+            r += 1
+            st = line["stone"]
+            ws.cell(row=r, column=1, value=st.get("plan_no"))
+            seen(1, st.get("plan_no", ""))
+            nlines = 1
+            for i, (key, _h, flds, fmt, g) in enumerate(layout, start=2):
+                src = st
+                if g is not None and line["by_idx"] is not None:
+                    src = line["by_idx"].get(idx_list[g])       # colour columns: this colour's row
+                v = None if src is None else _slip_value(src, key, flds)
+                cell = ws.cell(row=r, column=i, value=v if v is not None else "—")
+                if fmt and isinstance(v, (int, float)):
+                    cell.number_format = fmt
+                text = _slip_text(v, fmt)
+                if key == "remarks":
+                    nlines = max(nlines, min(3, -(-len(str(v or "")) // SLIP_REMARKS_W)))
+                    text = text[:SLIP_REMARKS_W]
+                seen(i, text)
+            for i in range(1, ncols + 1):
+                cell = ws.cell(row=r, column=i)
+                cell.border = border_for(i)
+                cell.alignment = center
+                cell.font = font
+                if b["is_final"]:
+                    cell.fill = final_fill
+            if remarks_col:
+                ws.cell(row=r, column=remarks_col).alignment = Alignment(
+                    horizontal="center", vertical="center", wrap_text=True)
+            ws.row_dimensions[r].height = SLIP_ROW_H * nlines
+
+        # ---- ONE dark total row per plan: every colour option side by side ----
+        r += 1
+        name = f"Total {b['grp']}"
+        if b["is_final"]:
+            name += " ★"
+        if best and best[0] == b["grp"]:
+            name += " ▲"
+        ws.cell(row=r, column=1, value=name)
+        if not label_merged:
+            seen(1, name)
+        opt_at = {pos_of.get(o["idx"], 0): o for o in b["opts"]}
+        for i, (key, _h, flds, fmt, g) in enumerate(layout, start=2):
+            if label_merged and i < first_total:
+                continue                                  # covered by the merged label
+            if key == "carat":
+                o = b["opts"][0]
+                val = o["carat"]
+            elif g is not None and g in opt_at:
+                o = opt_at[g]
+                if key == "color":
+                    val = o["label"] or None
+                elif key == "gross":
+                    val = o["gross"] if o["gross"] is not None else "Pending"
+                elif key == "net":
+                    val = o["net"] if o["net"] is not None else "Pending"
+                else:
+                    val = None
+            else:
+                val = None
+            if val is None:
+                continue
+            cell = ws.cell(row=r, column=i, value=val)
+            if fmt and isinstance(val, (int, float)):
+                cell.number_format = fmt
+            seen(i, _slip_text(val, fmt))
+        for i in range(1, ncols + 1):
+            cell = ws.cell(row=r, column=i)
+            cell.border = border_for(i)
+            cell.alignment = center
+            cell.fill = total_fill
+            cell.font = total_font
+            c = layout[i - 2] if i >= 2 else None
+            if c and c[4] is not None and best and best[0] == b["grp"] and c[4] in opt_at \
+                    and opt_at[c[4]]["idx"] == best[1] and c[0] in ("color", "gross", "net"):
+                cell.fill = best_fill                       # the highest option stays amber
+                cell.font = best_font
+        ws.row_dimensions[r].height = SLIP_ROW_H
+        if label_merged:
+            ws.merge_cells(start_row=r, start_column=1, end_row=r, end_column=first_total - 1)
+
+    # ---- column widths ----
+    widths = [_slip_units(n) for n in longest]
+    for i, w in enumerate(widths, start=1):
+        ws.column_dimensions[get_column_letter(i)].width = w
+    content_px = sum(int(w * 7 + 5) for w in widths)
+    content_in = content_px / 96
+
+    # ---- print setup ----
+    forced_land = paper_key in SLIP_LANDSCAPE_PAPERS
+    landscape = forced_land or (paper_key != "4x6" and content_in > min(page_w, page_h) - 2 * SLIP_MARGIN)
+    ws.print_area = f"A1:{last_col}{r}"
+    ws.page_setup.orientation = "landscape" if landscape else "portrait"
+    if paper_code:
+        ws.page_setup.paperSize = paper_code
+    else:
+        try:  # custom roll size: pick the same size in the print window
+            ws.page_setup.paperWidth = f"{page_w * 25.4:.1f}mm"
+            ws.page_setup.paperHeight = f"{page_h * 25.4:.1f}mm"
+        except Exception:
+            pass
+    ws.page_setup.fitToWidth = 1
+    ws.page_setup.fitToHeight = 0       # roll paper: as long as it needs to be
+    ws.sheet_properties.pageSetUpPr = PageSetupProperties(fitToPage=True)
+    ws.print_options.horizontalCentered = True
+    ws.page_margins.left = ws.page_margins.right = SLIP_MARGIN
+    ws.page_margins.top = ws.page_margins.bottom = SLIP_MARGIN
+    ws.page_margins.header = ws.page_margins.footer = 0
+
+
 @api_router.get("/pricing/quote-stones/export-print")
 async def export_print_slip(
     packet_no: Optional[str] = None,
     fields: Optional[str] = None,
-    paper: str = "a4",
+    paper: str = "4x6",
     only_final: bool = False,
     final_colour: str = "both",   # final plan only: "both", "first", "second" or a colour letter like "D"
-    big: bool = False,            # no longer needed: the slip is always printed big (kept so old links still work)
+    big: bool = False,            # kept so old links still work
     user: dict = Depends(get_current_user),
 ):
     if not user_can_export_excel(user):
         raise HTTPException(status_code=403, detail="Not permitted to export")
 
-    paper_key = paper.lower() if paper.lower() in SLIP_PAPER else "a4"
+    paper_key = paper.lower() if paper.lower() in SLIP_PAPER else "4x6"
     paper_code, page_w, page_h = SLIP_PAPER[paper_key]
 
     wanted = [f.strip() for f in (fields or "").split(",") if f.strip()] or SLIP_DEFAULT
@@ -2111,7 +2387,7 @@ async def export_print_slip(
     cps_fields = [f for f in ("cut", "polish", "symmetry") if f in wanted]
 
     # the columns to print: (key, heading, stone fields, number format)
-    cols = []
+    base_cols = []
     for key in SLIP_ORDER:
         heading, flds, fmt = SLIP_COLS[key]
         if key == "cps":
@@ -2120,18 +2396,17 @@ async def export_print_slip(
             flds = cps_fields
         elif key not in wanted:
             continue
-        cols.append((key, heading, flds, fmt))
-    if not cols:   # nothing valid ticked: print the default columns
+        base_cols.append((key, heading, flds, fmt))
+    if not base_cols:   # nothing valid ticked: print the default columns
         wanted = SLIP_DEFAULT
-        cols = [(k, SLIP_COLS[k][0], ["cut", "polish", "symmetry"] if k == "cps" else SLIP_COLS[k][1],
-                 SLIP_COLS[k][2]) for k in SLIP_ORDER if k == "cps" or k in wanted]
+        base_cols = [(k, SLIP_COLS[k][0], ["cut", "polish", "symmetry"] if k == "cps" else SLIP_COLS[k][1],
+                      SLIP_COLS[k][2]) for k in SLIP_ORDER if k == "cps" or k in wanted]
 
     query = {"packet_no": packet_no} if packet_no else {}
     items = await db.quote_stones.find(query, {"_id": 0}).to_list(5000)
     if not items:
         raise HTTPException(status_code=404, detail="No stones found")
     items = [with_computed_pricing(i) for i in items]
-    # the rough weight is the same for the whole packet (read before any filtering)
     rough_of = {}
     for st in items:
         pk = str(st.get("packet_no", ""))
@@ -2144,7 +2419,6 @@ async def export_print_slip(
         items = [st for st in items if st.get("is_final")]
         if not items:
             raise HTTPException(status_code=404, detail="No final plan is marked yet")
-        # colour ranges in the final plan: print both colours, or just one colour
         if fc.lower() != "both":
             colour_note = True
             letters_of = {}
@@ -2154,7 +2428,7 @@ async def export_print_slip(
 
             def keep(st):
                 if not st.get("color_range"):
-                    return True                      # single-colour stones always stay
+                    return True
                 idx = st.get("range_index") or 0
                 if fc.lower() == "first":
                     return idx == 0
@@ -2162,220 +2436,23 @@ async def export_print_slip(
                     return idx == 1
                 if fc.upper() in letters_of.get(st.get("range_id"), set()):
                     return str(st.get("color", "")).upper() == fc.upper()
-                return True                          # this stone has no such colour: keep both rows
+                return True
             items = [st for st in items if keep(st)]
     items.sort(key=stone_sort_key)
 
-    thin = Side(style="thin", color="000000")
-    box = Border(left=thin, right=thin, top=thin, bottom=thin)
-    # shrink_to_fit: a number that is still too wide for its cell gets smaller instead of "####"
-    center = Alignment(horizontal="center", vertical="center", shrink_to_fit=True)
-    final_fill = PatternFill("solid", fgColor="C6E0B4")   # green = final plan
-    total_fill = PatternFill("solid", fgColor="FFF2CC")
-    best_fill = PatternFill("solid", fgColor="FFC000")    # amber = highest total value
-    # normal rows: regular Arial (not too light, not too dark); headings and totals: bold
-    font = Font(name="Arial", size=SLIP_FONT, bold=False)
-    bold_font = Font(name="Arial", size=SLIP_FONT, bold=True)
-
-    ncols = 1 + len(cols)
-    last_col = get_column_letter(ncols)
-    # the first column that gets a total: the TOTAL label spreads over the cells in front of it
-    first_total = next((i for i, c in enumerate(cols, start=2) if c[0] in SLIP_TOTAL_KEYS), None)
-    label_merged = bool(first_total and first_total > 2)
-    remarks_col = next((i for i, c in enumerate(cols, start=2) if c[0] == "remarks"), None)
-
-    def row_lines(st) -> int:
-        """How many text lines a stone row needs (only long remarks wrap)."""
-        if not remarks_col:
-            return 1
-        return max(1, min(3, -(-len(_clean_remarks(st.get("remarks"))) // SLIP_REMARKS_W)))
-
-    def render(ws, capacity=None):
-        """Writes every packet into ws. Returns (last row, longest text of each column).
-        With a page capacity (points) every packet starts on a new page, the heading is
-        repeated on every page, and a plan is never split between two pages."""
-        longest = [len("Plan")] + [len(c[1]) for c in cols]
-
-        def seen(col_idx, text):
-            longest[col_idx - 1] = max(longest[col_idx - 1], len(text))
-
-        r = 0
-        first_packet = True
-
-        def write_header(heading_text) -> float:
-            """Title + column names. Returns the height (points) they use."""
-            nonlocal r
-            r += 1
-            ws.merge_cells(start_row=r, start_column=1, end_row=r, end_column=ncols)
-            tc = ws.cell(row=r, column=1, value=heading_text)
-            tc.font = Font(name="Arial", size=SLIP_TITLE, bold=True)
-            tc.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
-            ws.row_dimensions[r].height = SLIP_ROW_H * 2
-            r += 1
-            ws.row_dimensions[r].height = 6
-            r += 1
-            for i, head in enumerate(["Plan"] + [c[1] for c in cols], start=1):
-                c = ws.cell(row=r, column=i, value=head)
-                c.font = bold_font
-                c.border = box
-                c.alignment = center
-            ws.row_dimensions[r].height = SLIP_ROW_H
-            return SLIP_ROW_H * 3 + 6
-
-        for pkt, pkt_items in groupby(items, key=lambda s: str(s.get("packet_no", ""))):
-            pkt_items = list(pkt_items)
-            if not first_packet:
-                ws.row_breaks.append(Break(id=r))   # the next packet starts on a new page
-                r += 1                              # (one empty row)
-            first_packet = False
-
-            # title: ESTIMATE, packet number, rough weight (same for the whole packet), final plan note
-            heading = f"ESTIMATE   ·   Packet {pkt}"
-            if show_rough and rough_of.get(pkt) is not None:
-                heading += f"   ·   Rough {rough_of[pkt]}"
-            if only_final:
-                heading += "   ·   FINAL PLAN"
-                if colour_note:
-                    shown = sorted({st.get("color") for st in pkt_items if st.get("color_range") and st.get("color")})
-                    if shown:
-                        heading += f"   ·   colour {'/'.join(shown)}"
-            used = write_header(heading)       # points used on the current page
-            header_h = used
-
-            best = highest_total(pkt_items)   # amber = highest total value in this packet
-            best_rows = []
-            # one block per plan group: Plan 1 + Plan 1A together, Plan 2 separate
-            for grp, block in groupby(pkt_items, key=lambda s: plan_group_of(s.get("plan_no", ""))):
-                block = list(block)
-                secs = plan_sections(block)
-                block_h = sum(SLIP_ROW_H * row_lines(st) for st in block) + SLIP_ROW_H * sum(
-                    1 for sec in secs if sec["total_of"] is not None)
-                # the whole plan moves to the next page if it does not fit on this one
-                if capacity and used > header_h and used + block_h > capacity:
-                    ws.row_breaks.append(Break(id=r))
-                    used = write_header(heading + "   (continued)")
-                used += block_h
-
-                is_final = any(st.get("is_final") for st in block)
-                block_start = r + 1
-
-                for sec in secs:
-                    for st in sec["rows"]:
-                        r += 1
-                        ws.cell(row=r, column=1, value=st.get("plan_no"))
-                        seen(1, str(st.get("plan_no", "")))
-                        lines = 1
-                        for i, (key, _head, flds, fmt) in enumerate(cols, start=2):
-                            if key == "shape":
-                                v = _slip_shape(st.get("shape_display"))
-                            elif key == "cps":
-                                v = _cps_text(st, flds)
-                            elif key == "remarks":
-                                v = _clean_remarks(st.get("remarks"))
-                                lines = max(lines, min(3, -(-len(v) // SLIP_REMARKS_W)))
-                            else:
-                                v = st.get(flds[0])
-                            cell = ws.cell(row=r, column=i, value=v if v is not None else "—")
-                            if fmt and v is not None:
-                                cell.number_format = fmt
-                            text = _slip_text(v, fmt)
-                            seen(i, text[:SLIP_REMARKS_W] if key == "remarks" else text)
-                        for i in range(1, ncols + 1):
-                            cell = ws.cell(row=r, column=i)
-                            cell.border = box
-                            cell.alignment = center
-                            cell.font = font
-                        if remarks_col:
-                            ws.cell(row=r, column=remarks_col).alignment = Alignment(
-                                horizontal="center", vertical="center", wrap_text=True)
-                        ws.row_dimensions[r].height = SLIP_ROW_H * lines
-
-                    if sec["total_of"] is None:
-                        continue
-                    # this colour's total sits directly under its rows
-                    r += 1
-                    name = f"Total {grp}"
-                    if sec["label"]:
-                        name += f" ({sec['label'].replace(' / ', '/')})"
-                    if is_final:
-                        name += " ★"          # final plan
-                    if best == (grp, sec["label"]):
-                        name += " ▲"          # highest total value
-                        best_rows.append(r)
-                    ws.cell(row=r, column=1, value=name)
-                    if not label_merged:
-                        seen(1, name)         # no room to spread: the Plan column must fit the label
-                    for i, (key, _head, flds, fmt) in enumerate(cols, start=2):
-                        if key not in SLIP_TOTAL_KEYS:
-                            continue
-                        vals = [st.get(flds[0]) for st in sec["total_of"]]
-                        if any(v is None for v in vals):
-                            total = "Pending"
-                        else:
-                            total = round(sum(vals), 3 if key == "carat" else 2)
-                        cell = ws.cell(row=r, column=i, value=total)
-                        if fmt and total != "Pending":
-                            cell.number_format = fmt
-                        seen(i, total if total == "Pending" else _slip_text(total, fmt))
-                    for i in range(1, ncols + 1):
-                        cell = ws.cell(row=r, column=i)
-                        cell.border = box
-                        cell.alignment = center
-                        cell.font = bold_font
-                        cell.fill = best_fill if r in best_rows else total_fill
-                    ws.row_dimensions[r].height = SLIP_ROW_H
-                    # the label spreads over the cells in front of the first total column
-                    if label_merged:
-                        ws.merge_cells(start_row=r, start_column=1, end_row=r, end_column=first_total - 1)
-
-                # the final plan is shaded green
-                if is_final:
-                    for rr in range(block_start, r + 1):
-                        if rr in best_rows:
-                            continue   # the highest total stays amber
-                        for i in range(1, ncols + 1):
-                            cell = ws.cell(row=rr, column=i)
-                            if type(cell).__name__ != "MergedCell":
-                                cell.fill = final_fill
-        return r, longest
-
-    # pass 1 measures the columns; pass 2 writes the real sheet with the right page breaks
-    _, longest = render(Workbook().active)
-    widths = [_slip_units(n) for n in longest]
-    content_px = sum(int(w * 7 + 5) for w in widths)
-    content_in = content_px / 96
-    # 4 x 6 is always portrait; other papers turn sideways only if the columns do not fit across
-    landscape = paper_key != "4x6" and content_in > min(page_w, page_h) - 2 * SLIP_MARGIN
-    sheet_w, sheet_h = (page_h, page_w) if landscape else (page_w, page_h)
-    # Excel shrinks the slip to the page width: work out how many points of sheet fit on a page
-    scale = min(1.0, (sheet_w - 2 * SLIP_MARGIN) * 72 / (content_px * 0.75))
-    capacity = (sheet_h - 2 * SLIP_MARGIN) * 72 / scale * SLIP_PAGE_SAFETY
-
+    # one sheet per packet (each packet gets the layout it needs)
     wb = Workbook()
-    ws = wb.active
-    ws.title = _sheet_title(wb, ws, packet_no) if packet_no else "Slips"
-    r, _ = render(ws, capacity)
-    for i, w in enumerate(widths, start=1):
-        ws.column_dimensions[get_column_letter(i)].width = w
-
-    # print setup: small margins, fits the page width
-    ws.print_area = f"A1:{last_col}{r}"
-    ws.page_setup.orientation = "landscape" if landscape else "portrait"
-    if paper_code:
-        ws.page_setup.paperSize = paper_code
-    else:
-        try:  # 4 x 6 inch = 4 WIDE x 6 TALL (portrait); Excel uses the paper chosen in the print window
-            ws.page_setup.paperWidth = "101.6mm"
-            ws.page_setup.paperHeight = "152.4mm"
-        except Exception:
-            pass
-    ws.page_setup.fitToWidth = 1
-    ws.page_setup.fitToHeight = 0
-    ws.sheet_properties.pageSetUpPr = PageSetupProperties(fitToPage=True)
-    ws.print_options.horizontalCentered = True
-    ws.page_margins.left = ws.page_margins.right = SLIP_MARGIN
-    ws.page_margins.top = ws.page_margins.bottom = SLIP_MARGIN
-    ws.page_margins.header = ws.page_margins.footer = 0
+    first = True
+    for pkt, pkt_items in groupby(items, key=lambda s: str(s.get("packet_no", ""))):
+        pkt_items = list(pkt_items)
+        ws = wb.active if first else wb.create_sheet()
+        first = False
+        ws.title = _sheet_title(wb, ws, pkt)
+        _write_slip_sheet(
+            ws, pkt, pkt_items, base_cols,
+            rough_of.get(pkt) if show_rough else None,
+            only_final, colour_note, paper_key, paper_code, page_w, page_h,
+        )
 
     buf = io.BytesIO()
     wb.save(buf)
