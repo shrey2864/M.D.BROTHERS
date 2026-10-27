@@ -2067,7 +2067,7 @@ SLIP_PAPER = {
 }
 SLIP_LANDSCAPE_PAPERS = ("4x6",)
 # these columns change with the colour, so they are repeated side by side for each colour
-SLIP_COLOUR_KEYS = ("color", "rapaport", "discount", "gross", "net")
+SLIP_COLOUR_KEYS = ("color", "rapaport", "gross", "net")
  
 def _slip_text(v, fmt) -> str:
     """The text a cell will show (used to give every column exactly the width it needs)."""
@@ -2185,11 +2185,10 @@ def _write_slip_sheet(ws, pkt, stones, base_cols, rough, only_final, colour_note
     thick = Side(style="medium", color="000000")
     center = Alignment(horizontal="center", vertical="center", shrink_to_fit=True)
     final_fill = PatternFill("solid", fgColor="C6E0B4")   # green = final plan
-    total_fill = PatternFill("solid", fgColor="262626")   # dark = plan total
+    total_fill = PatternFill("solid", fgColor="FFF2CC")   # light yellow = plan total
     best_fill = PatternFill("solid", fgColor="FFC000")    # amber = highest total
     font = Font(name="Arial", size=SLIP_FONT, bold=False)
     bold_font = Font(name="Arial", size=SLIP_FONT, bold=True)
-    total_font = Font(name="Arial", size=SLIP_FONT, bold=True, color="FFFFFF")
     best_font = Font(name="Arial", size=SLIP_FONT, bold=True, color="000000")
 
     def border_for(i):
@@ -2323,8 +2322,8 @@ def _write_slip_sheet(ws, pkt, stones, base_cols, rough, only_final, colour_note
             cell = ws.cell(row=r, column=i)
             cell.border = border_for(i)
             cell.alignment = center
-            cell.fill = total_fill
-            cell.font = total_font
+            cell.fill = final_fill if b["is_final"] else total_fill
+            cell.font = bold_font
             c = layout[i - 2] if i >= 2 else None
             if c and c[4] is not None and best and best[0] == b["grp"] and c[4] in opt_at \
                     and opt_at[c[4]]["idx"] == best[1] and c[0] in ("color", "gross", "net"):
