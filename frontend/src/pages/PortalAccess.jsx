@@ -21,7 +21,7 @@ export default function PortalAccess() {
     setError("");
     setLoading(true);
     try {
-      const data = await login(form.email, form.password);
+      const data = await login(form.email.trim(), form.password);
       if (data.role === "staff") {
         navigate("/portal-access/entry");
       } else if (data.role === "pricing_manager" || data.role === "admin") {
@@ -45,17 +45,22 @@ export default function PortalAccess() {
         <h1 className="mt-4 font-serif text-5xl font-light text-white">
           Pricing <span className="italic text-gold">portal.</span>
         </h1>
-        <p className="mt-4 text-sm text-zinc-500">Sign in with the credentials you were given.</p>
+        <p className="mt-4 text-sm text-zinc-500">Sign in with the username or email you were given.</p>
         <form onSubmit={submit} className="mt-12 space-y-8" data-testid="portal-access-form">
           {error && (
             <p className="border border-red-900/50 bg-red-950/30 px-4 py-3 text-xs text-red-400" data-testid="portal-access-error">
               {error}
             </p>
           )}
+          {/* a plain text box: it takes the short username OR the email address */}
           <input
-            type="email"
+            type="text"
             required
-            placeholder="Email Address"
+            autoCapitalize="none"
+            autoCorrect="off"
+            spellCheck={false}
+            autoComplete="username"
+            placeholder="Username or Email"
             value={form.email}
             onChange={(e) => setForm({ ...form, email: e.target.value })}
             className="lux-input"
@@ -64,6 +69,7 @@ export default function PortalAccess() {
           <input
             type="password"
             required
+            autoComplete="current-password"
             placeholder="Password"
             value={form.password}
             onChange={(e) => setForm({ ...form, password: e.target.value })}
