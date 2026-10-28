@@ -16,7 +16,7 @@ export default function Login() {
     setError("");
     setLoading(true);
     try {
-      await login(form.email, form.password);
+      await login(form.email.trim(), form.password);
       navigate("/dashboard");
     } catch (err) {
       setError(formatApiError(err.response?.data?.detail));
@@ -38,10 +38,22 @@ export default function Login() {
           {error && (
             <p className="border border-red-900/50 bg-red-950/30 px-4 py-3 text-xs text-red-400" data-testid="login-error">{error}</p>
           )}
-          <input type="email" required placeholder="Email Address" value={form.email}
+          {/* a plain text box: it takes the email address OR the short username */}
+          <input
+            type="text"
+            required
+            autoCapitalize="none"
+            autoCorrect="off"
+            spellCheck={false}
+            autoComplete="username"
+            placeholder="Email or Username"
+            value={form.email}
             onChange={(e) => setForm({ ...form, email: e.target.value })}
-            className="lux-input" data-testid="login-email-input" />
+            className="lux-input"
+            data-testid="login-email-input"
+          />
           <input type="password" required placeholder="Password" value={form.password}
+            autoComplete="current-password"
             onChange={(e) => setForm({ ...form, password: e.target.value })}
             className="lux-input" data-testid="login-password-input" />
           <div className="flex justify-end">
