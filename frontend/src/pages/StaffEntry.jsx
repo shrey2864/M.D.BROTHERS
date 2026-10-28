@@ -348,7 +348,7 @@ export default function StaffEntry() {
         <div className="mt-6 grid gap-8 sm:grid-cols-2 lg:grid-cols-4">
           <input required placeholder="Plan No (1, 1A, 2…)" value={form.plan_no} onChange={(e) => set("plan_no", e.target.value)} className="lux-input" data-testid="staff-plan-input" />
           <input required type="number" step="0.01" min="0.01" placeholder="Carat" value={form.pol_cts} onChange={(e) => set("pol_cts", e.target.value)} className="lux-input" data-testid="staff-carat-input" />
-          <input placeholder="Remarks (optional)" value={form.remarks} onChange={(e) => set("remarks", e.target.value)} className="lux-input" data-testid="staff-remarks-input" />
+          
 
           <label className="block">
             <span className={labelClass}>Shape</span>
@@ -385,6 +385,7 @@ export default function StaffEntry() {
           <input type="number" step="0.1" placeholder="Girdle %" value={form.girdle_pct} onChange={(e) => set("girdle_pct", e.target.value)} className="lux-input" data-testid="staff-girdle-input" />
           <input type="number" step="0.01" placeholder="TD" value={form.td} onChange={(e) => set("td", e.target.value)} className="lux-input" data-testid="staff-td-input" />
           <input type="number" step="0.01" placeholder="Ratio" value={form.ratio} onChange={(e) => set("ratio", e.target.value)} className="lux-input" data-testid="staff-ratio-input" />
+          <input placeholder="Remarks (optional)" value={form.remarks} onChange={(e) => set("remarks", e.target.value)} className="lux-input sm:col-span-2 lg:col-span-4" data-testid="staff-remarks-input" />
         </div>
 
         <div className="mt-8 flex justify-end">
