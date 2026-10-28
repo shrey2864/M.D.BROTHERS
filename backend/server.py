@@ -2092,6 +2092,7 @@ def _slip_units(n_chars: int) -> float:
     return max(n_chars * 1.35 + 1.5, 4.5)
 
 
+from openpyxl.worksheet.pagebreak import Break
 
 SLIP_PAPER = {
     "a4": (9, 8.27, 11.69),
@@ -2106,6 +2107,7 @@ SLIP_FONT_NAME = "Calibri"   # print slip font
 SLIP_FONT_SIZE = 13          # print slip text size (everything is bold)
 SLIP_TITLE_SIZE = 15
 SLIP_ROW_HEIGHT = 21         # row height (points)
+SLIP_PAGE_FILL = 0.92   # use only this part of a page when planning page breaks (stays on the safe side)
 SLIP_COLOUR_KEYS = ("color", "rapaport", "gross", "net")   # discount is the same for both colours: printed once
 
 
@@ -2247,7 +2249,7 @@ def _write_slip_sheet(ws, pkt, stones, base_cols, rough, only_final, colour_note
         c.border = border_for(i)
         c.alignment = center
     ws.row_dimensions[r].height = SLIP_ROW_HEIGHT
-    ws.print_title_rows = f"{r}:{r}"   # heading repeats if the roll is cut into pages
+    ws.print_title_rows = "1:3"   # the title and the column headings repeat on every page
 
     # ---- plans: highest total first, lowest last ----
     blocks = []
@@ -2268,7 +2270,9 @@ def _write_slip_sheet(ws, pkt, stones, base_cols, rough, only_final, colour_note
     cands = [(o["net"], b["grp"], o["idx"]) for b in blocks for o in b["opts"] if o["net"] is not None]
     best = max(cands, key=lambda c: c[0])[1:] if len(cands) >= 2 else None
 
+    spans = []   # (first row, last row) of every plan, to keep a plan on one page
     for b in blocks:
+        first_row = r + 1
         for line in _plan_lines(b["block"]):
             r += 1
             st = line["stone"]
@@ -2349,6 +2353,7 @@ def _write_slip_sheet(ws, pkt, stones, base_cols, rough, only_final, colour_note
         ws.row_dimensions[r].height = SLIP_ROW_HEIGHT
         if label_merged:
             ws.merge_cells(start_row=r, start_column=1, end_row=r, end_column=first_total - 1)
+        spans.append((first_row, r))
 
     # ---- column widths ----
     widths = [max(n * 1.5 + 1.5, 4.5) for n in longest]   # a little wider because the text is bigger and bold
@@ -2360,6 +2365,20 @@ def _write_slip_sheet(ws, pkt, stones, base_cols, rough, only_final, colour_note
     # ---- print setup ----
     forced_land = paper_key in SLIP_LANDSCAPE_PAPERS
     landscape = forced_land or (paper_key != "4x6" and content_in > min(page_w, page_h) - 2 * SLIP_MARGIN)
+    # ---- keep every plan whole: a plan that does not fit on the page moves to the next one ----
+    sheet_w, sheet_h = (page_h, page_w) if landscape else (page_w, page_h)
+    scale = min(1.0, (sheet_w - 2 * SLIP_MARGIN) * 72 / (content_px * 0.75))
+    capacity = (sheet_h - 2 * SLIP_MARGIN) * 72 / scale * SLIP_PAGE_FILL
+    row_h = lambda i: ws.row_dimensions[i].height or SLIP_ROW_HEIGHT
+    header_h = sum(row_h(i) for i in (1, 2, 3))   # the title + headings print on every page
+    used = header_h
+    for first_row, last_row in spans:
+        plan_h = sum(row_h(i) for i in range(first_row, last_row + 1))
+        if used > header_h and used + plan_h > capacity:
+            ws.row_breaks.append(Break(id=first_row - 1))
+            used = header_h
+        used += plan_h
+
     ws.print_area = f"A1:{last_col}{r}"
     ws.page_setup.orientation = "landscape" if landscape else "portrait"
     if paper_code:
@@ -2475,8 +2494,7 @@ async def export_print_slip(
         buf,
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
-    )
-    
+    )    
 # =====================================================================
 # JEWELLERY SECTION
 # =====================================================================
