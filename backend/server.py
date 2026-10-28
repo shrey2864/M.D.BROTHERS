@@ -2104,9 +2104,29 @@ SLIP_LANDSCAPE_PAPERS = ("4x6",)
 # these columns change with the colour, so they are repeated side by side for each colour
 # (the discount is the same for both colours, so it is printed only once)
 SLIP_FONT_NAME = "Calibri"   # print slip font
-SLIP_FONT_SIZE = 13          # print slip text size (everything is bold)
-SLIP_TITLE_SIZE = 15
-SLIP_ROW_HEIGHT = 21         # row height (points)
+SLIP_FONT_SIZE = 14         # print slip text size (everything is bold)
+SLIP_TITLE_SIZE = 16
+SLIP_ROW_HEIGHT = 21.5        # row height (points)
+SLIP_PAGE_FILL = 0.92   # use only this part of a page when planning page breaks (stays on the safe side)
+SLIP_COLOUR_KEYS = ("color", "rapaport", "gross", "net")   # discount is the same for both colours: printed once
+
+
+
+from openpyxl.worksheet.pagebreak import Break
+
+SLIP_PAPER = {
+    "a4": (9, 8.27, 11.69),
+    "a5": (11, 5.83, 8.27),
+    "a6": (70, 4.13, 5.83),
+    "4x6": (None, 4.0, 6.0),   # roll printer paper: now printed SIDEWAYS (landscape) and as long as needed
+}
+SLIP_LANDSCAPE_PAPERS = ("4x6",)
+# these columns change with the colour, so they are repeated side by side for each colour
+# (the discount is the same for both colours, so it is printed only once)
+SLIP_FONT_NAME = "Calibri"   # print slip font
+SLIP_FONT_SIZE = 14          # print slip text size (normal weight; only the totals are bold)
+SLIP_TITLE_SIZE = 16
+SLIP_ROW_HEIGHT = 22         # row height (points)
 SLIP_PAGE_FILL = 0.92   # use only this part of a page when planning page breaks (stays on the safe side)
 SLIP_COLOUR_KEYS = ("color", "rapaport", "gross", "net")   # discount is the same for both colours: printed once
 
@@ -2206,7 +2226,7 @@ def _write_slip_sheet(ws, pkt, stones, base_cols, rough, only_final, colour_note
     final_fill = PatternFill("solid", fgColor="C6E0B4")   # green = final plan
     total_fill = PatternFill("solid", fgColor="FFF2CC")   # light yellow = plan total (as before)
     best_fill = PatternFill("solid", fgColor="FFC000")    # amber = highest total
-    font = Font(name=SLIP_FONT_NAME, size=SLIP_FONT_SIZE, bold=True)
+    font = Font(name=SLIP_FONT_NAME, size=SLIP_FONT_SIZE, bold=False)
     bold_font = Font(name=SLIP_FONT_NAME, size=SLIP_FONT_SIZE, bold=True)
     best_font = Font(name=SLIP_FONT_NAME, size=SLIP_FONT_SIZE, bold=True, color="000000")
 
@@ -2237,7 +2257,7 @@ def _write_slip_sheet(ws, pkt, stones, base_cols, rough, only_final, colour_note
     r = 1
     ws.merge_cells(start_row=r, start_column=1, end_row=r, end_column=ncols)
     tc = ws.cell(row=r, column=1, value=heading)
-    tc.font = Font(name=SLIP_FONT_NAME, size=SLIP_TITLE_SIZE, bold=True)
+    tc.font = Font(name=SLIP_FONT_NAME, size=SLIP_TITLE_SIZE, bold=False)
     tc.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
     ws.row_dimensions[r].height = SLIP_ROW_HEIGHT * 1.4
     r += 1
@@ -2245,7 +2265,7 @@ def _write_slip_sheet(ws, pkt, stones, base_cols, rough, only_final, colour_note
     r += 1
     for i, head in enumerate(["Plan"] + [c[1] for c in layout], start=1):
         c = ws.cell(row=r, column=i, value=head)
-        c.font = bold_font
+        c.font = font
         c.border = border_for(i)
         c.alignment = center
     ws.row_dimensions[r].height = SLIP_ROW_HEIGHT
@@ -2494,7 +2514,7 @@ async def export_print_slip(
         buf,
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
         headers={"Content-Disposition": f'attachment; filename="{filename}"'},
-    )    
+    )
 # =====================================================================
 # JEWELLERY SECTION
 # =====================================================================
