@@ -2092,6 +2092,23 @@ def _slip_units(n_chars: int) -> float:
     return max(n_chars * 1.35 + 1.5, 4.5)
 
 
+
+SLIP_PAPER = {
+    "a4": (9, 8.27, 11.69),
+    "a5": (11, 5.83, 8.27),
+    "a6": (70, 4.13, 5.83),
+    "4x6": (None, 4.0, 6.0),   # roll printer paper: now printed SIDEWAYS (landscape) and as long as needed
+}
+SLIP_LANDSCAPE_PAPERS = ("4x6",)
+# these columns change with the colour, so they are repeated side by side for each colour
+# (the discount is the same for both colours, so it is printed only once)
+SLIP_FONT_NAME = "Calibri"   # print slip font
+SLIP_FONT_SIZE = 13          # print slip text size (everything is bold)
+SLIP_TITLE_SIZE = 15
+SLIP_ROW_HEIGHT = 21         # row height (points)
+SLIP_COLOUR_KEYS = ("color", "rapaport", "gross", "net")   # discount is the same for both colours: printed once
+
+
 def _slip_value(st: dict, key: str, flds: list):
     if key == "shape":
         return _slip_shape(st.get("shape_display"))
@@ -2185,11 +2202,11 @@ def _write_slip_sheet(ws, pkt, stones, base_cols, rough, only_final, colour_note
     thick = Side(style="medium", color="000000")
     center = Alignment(horizontal="center", vertical="center", shrink_to_fit=True)
     final_fill = PatternFill("solid", fgColor="C6E0B4")   # green = final plan
-    total_fill = PatternFill("solid", fgColor="FFF2CC")   # light yellow = plan total
+    total_fill = PatternFill("solid", fgColor="FFF2CC")   # light yellow = plan total (as before)
     best_fill = PatternFill("solid", fgColor="FFC000")    # amber = highest total
-    font = Font(name="Arial", size=SLIP_FONT, bold=False)
-    bold_font = Font(name="Arial", size=SLIP_FONT, bold=True)
-    best_font = Font(name="Arial", size=SLIP_FONT, bold=True, color="000000")
+    font = Font(name=SLIP_FONT_NAME, size=SLIP_FONT_SIZE, bold=True)
+    bold_font = Font(name=SLIP_FONT_NAME, size=SLIP_FONT_SIZE, bold=True)
+    best_font = Font(name=SLIP_FONT_NAME, size=SLIP_FONT_SIZE, bold=True, color="000000")
 
     def border_for(i):
         return Border(left=thick if i in group_starts else thin, right=thin, top=thin, bottom=thin)
@@ -2218,9 +2235,9 @@ def _write_slip_sheet(ws, pkt, stones, base_cols, rough, only_final, colour_note
     r = 1
     ws.merge_cells(start_row=r, start_column=1, end_row=r, end_column=ncols)
     tc = ws.cell(row=r, column=1, value=heading)
-    tc.font = Font(name="Arial", size=SLIP_TITLE, bold=True)
+    tc.font = Font(name=SLIP_FONT_NAME, size=SLIP_TITLE_SIZE, bold=True)
     tc.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
-    ws.row_dimensions[r].height = SLIP_ROW_H * 1.4
+    ws.row_dimensions[r].height = SLIP_ROW_HEIGHT * 1.4
     r += 1
     ws.row_dimensions[r].height = 4
     r += 1
@@ -2229,7 +2246,7 @@ def _write_slip_sheet(ws, pkt, stones, base_cols, rough, only_final, colour_note
         c.font = bold_font
         c.border = border_for(i)
         c.alignment = center
-    ws.row_dimensions[r].height = SLIP_ROW_H
+    ws.row_dimensions[r].height = SLIP_ROW_HEIGHT
     ws.print_title_rows = f"{r}:{r}"   # heading repeats if the roll is cut into pages
 
     # ---- plans: highest total first, lowest last ----
@@ -2281,9 +2298,9 @@ def _write_slip_sheet(ws, pkt, stones, base_cols, rough, only_final, colour_note
             if remarks_col:
                 ws.cell(row=r, column=remarks_col).alignment = Alignment(
                     horizontal="center", vertical="center", wrap_text=True)
-            ws.row_dimensions[r].height = SLIP_ROW_H * nlines
+            ws.row_dimensions[r].height = SLIP_ROW_HEIGHT * nlines
 
-        # ---- ONE dark total row per plan: every colour option side by side ----
+        # ---- ONE total row per plan: every colour option side by side ----
         r += 1
         name = f"Total {b['grp']}"
         if b["is_final"]:
@@ -2322,19 +2339,19 @@ def _write_slip_sheet(ws, pkt, stones, base_cols, rough, only_final, colour_note
             cell = ws.cell(row=r, column=i)
             cell.border = border_for(i)
             cell.alignment = center
-            cell.fill = final_fill if b["is_final"] else total_fill
-            cell.font = bold_font
+            cell.fill = final_fill if b["is_final"] else total_fill   # final plan stays green
+            cell.font = bold_font                                      # total = bold, normal colour
             c = layout[i - 2] if i >= 2 else None
             if c and c[4] is not None and best and best[0] == b["grp"] and c[4] in opt_at \
                     and opt_at[c[4]]["idx"] == best[1] and c[0] in ("color", "gross", "net"):
                 cell.fill = best_fill                       # the highest option stays amber
                 cell.font = best_font
-        ws.row_dimensions[r].height = SLIP_ROW_H
+        ws.row_dimensions[r].height = SLIP_ROW_HEIGHT
         if label_merged:
             ws.merge_cells(start_row=r, start_column=1, end_row=r, end_column=first_total - 1)
 
     # ---- column widths ----
-    widths = [_slip_units(n) for n in longest]
+    widths = [max(n * 1.5 + 1.5, 4.5) for n in longest]   # a little wider because the text is bigger and bold
     for i, w in enumerate(widths, start=1):
         ws.column_dimensions[get_column_letter(i)].width = w
     content_px = sum(int(w * 7 + 5) for w in widths)
