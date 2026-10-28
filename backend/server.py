@@ -212,6 +212,7 @@ def public_user(user: dict) -> dict:
     return {
         "user_id": user["user_id"],
         "email": user["email"],
+        "username": user.get("username"),
         "name": user["name"],
         "role": user.get("role", "buyer"),
         "company": user.get("company"),
@@ -222,7 +223,6 @@ def public_user(user: dict) -> dict:
         "has_kyc_doc": bool(user.get("kyc_doc_path")),
         "status": user.get("status", "approved" if user.get("role") == "admin" else "pending"),
     }
-
 
 async def get_current_user(request: Request) -> dict:
     token = request.cookies.get("access_token")
@@ -270,7 +270,7 @@ class RegisterBody(BaseModel):
 
 
 class LoginBody(BaseModel):
-    email: EmailStr
+    email: str          # the email OR the short username the admin gave
     password: str
 
 
@@ -301,23 +301,24 @@ async def register(body: RegisterBody, response: Response):
 
 @api_router.post("/auth/login")
 async def login(body: LoginBody, request: Request, response: Response):
-    email = body.email.lower()
+    # "email" can be the email OR the short username (usernames are saved in small letters)
+    email = body.email.strip().lower()
     identifier = f"{request.client.host if request.client else 'unknown'}:{email}"
     attempts = await db.login_attempts.find_one({"identifier": identifier})
     if attempts and attempts.get("count", 0) >= 5 and time.time() - attempts.get("ts", 0) < 900:
         raise HTTPException(status_code=429, detail="Too many failed attempts. Try again in 15 minutes.")
-    user = await db.users.find_one({"email": email}, {"_id": 0})
+    user = await db.users.find_one({"$or": [{"email": email}, {"username": email}]}, {"_id": 0})
     if not user or not verify_password(body.password, user["password_hash"]):
         await db.login_attempts.update_one(
             {"identifier": identifier},
             {"$inc": {"count": 1}, "$set": {"ts": time.time()}},
             upsert=True,
         )
-        raise HTTPException(status_code=401, detail="Invalid email or password")
+        raise HTTPException(status_code=401, detail="Invalid email/username or password")
     await db.login_attempts.delete_one({"identifier": identifier})
     if user.get("role") == "portal_pending":
-            raise HTTPException(status_code=403, detail="Your access request is waiting for admin approval")
-    set_auth_cookies(response, user["user_id"], email)
+        raise HTTPException(status_code=403, detail="Your access request is waiting for admin approval")
+    set_auth_cookies(response, user["user_id"], user["email"])
     return public_user(user)
 
 
@@ -2644,7 +2645,71 @@ async def admin_delete_jewellery(item_id: str, user: dict = Depends(require_admi
         raise HTTPException(status_code=404, detail="Not found")
     return {"status": "deleted"}
 
+# ---------------- Usernames, change password, admin password reset ----------------
+USERNAME_RE = re.compile(r"^[a-z0-9._-]{2,30}$")
 
+
+class UsernameBody(BaseModel):
+    username: str      # empty text removes the username
+
+
+@api_router.put("/admin/users/{user_id}/username")
+async def admin_set_username(user_id: str, body: UsernameBody, user: dict = Depends(require_admin)):
+    uname = body.username.strip().lower()
+    if not uname:
+        result = await db.users.update_one({"user_id": user_id}, {"$unset": {"username": ""}})
+        if result.matched_count == 0:
+            raise HTTPException(status_code=404, detail="User not found")
+        return {"status": "cleared", "username": None}
+    if not USERNAME_RE.match(uname):
+        raise HTTPException(
+            status_code=400,
+            detail="Username must be 2-30 letters, numbers, dot, dash or underscore (no spaces)",
+        )
+    clash = await db.users.find_one(
+        {"user_id": {"$ne": user_id}, "$or": [{"username": uname}, {"email": uname}]}
+    )
+    if clash:
+        raise HTTPException(status_code=400, detail="That username is already used")
+    result = await db.users.update_one({"user_id": user_id}, {"$set": {"username": uname}})
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="User not found")
+    return {"status": "updated", "username": uname}
+
+
+class AdminPasswordBody(BaseModel):
+    new_password: str
+
+
+@api_router.post("/admin/users/{user_id}/password")
+async def admin_set_password(user_id: str, body: AdminPasswordBody, user: dict = Depends(require_admin)):
+    if len(body.new_password) < 8:
+        raise HTTPException(status_code=400, detail="Password must be at least 8 characters")
+    result = await db.users.update_one(
+        {"user_id": user_id}, {"$set": {"password_hash": hash_password(body.new_password)}}
+    )
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="User not found")
+    return {"status": "password_set"}
+
+
+class ChangePasswordBody(BaseModel):
+    current_password: str
+    new_password: str
+
+
+@api_router.post("/auth/change-password")
+async def change_password(body: ChangePasswordBody, user: dict = Depends(get_current_user)):
+    if not verify_password(body.current_password, user["password_hash"]):
+        raise HTTPException(status_code=400, detail="Current password is wrong")
+    if len(body.new_password) < 8:
+        raise HTTPException(status_code=400, detail="New password must be at least 8 characters")
+    if body.new_password == body.current_password:
+        raise HTTPException(status_code=400, detail="New password must be different from the current one")
+    await db.users.update_one(
+        {"user_id": user["user_id"]}, {"$set": {"password_hash": hash_password(body.new_password)}}
+    )
+    return {"status": "changed"}
 app.include_router(api_router)
 
 _cors_env = os.environ.get("CORS_ORIGINS", "")
