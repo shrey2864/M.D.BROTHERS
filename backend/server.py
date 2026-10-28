@@ -2126,7 +2126,7 @@ SLIP_LANDSCAPE_PAPERS = ("4x6",)
 SLIP_FONT_NAME = "Calibri"   # print slip font
 SLIP_FONT_SIZE = 14          # print slip text size (normal weight; only the totals are bold)
 SLIP_TITLE_SIZE = 16
-SLIP_ROW_HEIGHT = 21        # row height (points)
+SLIP_ROW_HEIGHT = 20        # row height (points)
 SLIP_PAGE_FILL = 0.92   # use only this part of a page when planning page breaks (stays on the safe side)
 SLIP_COLOUR_KEYS = ("color", "rapaport", "gross", "net")   # discount is the same for both colours: printed once
 
