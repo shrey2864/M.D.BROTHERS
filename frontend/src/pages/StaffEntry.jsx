@@ -7,10 +7,11 @@ import { Overline } from "@/components/Reveal";
 
 const EMPTY = {
   rough_name: "", packet_no: "", planner_name: "", rough_weight: "", fluorescence: "NON",
+  mumbai: "none", // none = Surat, packet = whole packet in Mumbai, plan = only this plan in Mumbai
   plan_no: "",
   shape: "BR", pol_cts: "", color: "D", clarity: "VS1",
   cut: "EX", polish: "EX", symmetry: "EX",
-  black_no_black: "No black", lab: "GIA",
+  black_no_black: "No black", reference: "", lab: "GIA",
   table_pct: "", girdle_pct: "", td: "", ratio: "", remarks: "",
 };
 
@@ -32,6 +33,9 @@ const SHAPES = [
   { code: "PS", label: "Emerald" },
 ];
 const SHAPE_LABEL = { BR: "Round", PS: "Fancy shape" };
+
+// Reference: T = table, B = black (0, 1 or 2 each)
+const REFERENCES = ["T0B0", "T1B0", "T2B0", "T0B1", "T1B1", "T2B1", "T0B2", "T1B2", "T2B2"];
 
 const GRADES = ["EX", "VG", "GD"];
 const FLUORESCENCE = ["NON", "FNT", "MED", "STG"];
@@ -87,7 +91,7 @@ export default function StaffEntry() {
   const [items, setItems] = useState([]);
   const [editingId, setEditingId] = useState(null); // the stone being edited (null = adding a new one)
 
-  // The packet whose details (planner / rough weight / fluorescence) the form is carrying
+  // The packet whose details (planner / rough weight / fluorescence / Mumbai) the form is carrying
   const activePacket = useRef("");
 
   const load = () =>
@@ -99,7 +103,7 @@ export default function StaffEntry() {
   }, [user]);
 
   // Packet-level details stay the same for one packet:
-  //  - typing a packet that already exists fills planner, rough weight, fluorescence
+  //  - typing a packet that already exists fills planner, rough weight, fluorescence, Mumbai
   //  - switching to a NEW packet clears them so old values don't carry over
   useEffect(() => {
     const full = form.packet_no.trim() ? composePacket(form.rough_name, form.packet_no) : "";
@@ -112,10 +116,11 @@ export default function StaffEntry() {
         planner_name: match.planner_name ?? f.planner_name,
         rough_weight: match.rough_weight != null ? String(match.rough_weight) : f.rough_weight,
         fluorescence: match.fluorescence ?? f.fluorescence,
+        mumbai: items.filter((s) => s.packet_no === full).every((s) => s.location === "mumbai") ? "packet" : "none",
       }));
     } else if (!match && activePacket.current && activePacket.current !== full) {
       activePacket.current = "";
-      setForm((f) => ({ ...f, planner_name: "", rough_weight: "", fluorescence: "NON" }));
+      setForm((f) => ({ ...f, planner_name: "", rough_weight: "", fluorescence: "NON", mumbai: "none" }));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [form.rough_name, form.packet_no, items]);
@@ -197,6 +202,11 @@ export default function StaffEntry() {
       planner_name: s.planner_name || "",
       rough_weight: text(s.rough_weight),
       fluorescence: s.fluorescence || "NON",
+      mumbai: items.filter((x) => x.packet_no === s.packet_no).every((x) => x.location === "mumbai")
+        ? "packet"
+        : s.location === "mumbai"
+        ? "plan"
+        : "none",
       plan_no: s.plan_no || "",
       shapeLabel: label,
       shape: code,
@@ -207,6 +217,7 @@ export default function StaffEntry() {
       polish: s.polish || "EX",
       symmetry: s.symmetry || "EX",
       black_no_black: s.black_no_black || "No black",
+      reference: s.reference || "",
       lab: s.lab || "GIA",
       table_pct: text(s.table_pct),
       girdle_pct: text(s.girdle_pct),
@@ -237,11 +248,14 @@ export default function StaffEntry() {
   const submit = async (e) => {
     e.preventDefault();
     setSaving(true);
-    const { shapeLabel, ...rest } = form;
+    const { shapeLabel, mumbai, ...rest } = form;
     const payload = {
       ...rest,
+      location: mumbai !== "none" ? "mumbai" : "surat",
+      location_scope: mumbai === "none" ? null : mumbai, // "packet" = whole packet, "plan" = only this plan
       shape_name: (SHAPES.find((x) => x.label === shapeLabel) || {}).short || shapeLabel, // shown in Excel + dashboard
       cut: form.shape === "PS" ? null : form.cut, // fancy shapes have no cut
+      reference: form.reference || null,
       rough_name: form.rough_name.trim(),
       packet_no: form.packet_no.trim(),
       planner_name: form.planner_name.trim(),
@@ -272,6 +286,7 @@ export default function StaffEntry() {
         planner_name: form.planner_name,
         rough_weight: form.rough_weight,
         fluorescence: form.fluorescence,
+        mumbai: form.mumbai === "plan" ? "none" : form.mumbai, // "only this plan" is not carried to the next plan
         plan_no: form.plan_no,
       });
       load();
@@ -336,9 +351,38 @@ export default function StaffEntry() {
             </select>
           </label>
         </div>
+
+        {/* Mumbai: tick = this packet is priced in Mumbai. "Plan only" = just this plan, not the whole packet */}
+        <div className="mt-8 flex flex-wrap items-center gap-8">
+          <label className="inline-flex cursor-pointer items-center gap-3 font-mono text-xs uppercase tracking-[0.2em] text-sky-300">
+            <input
+              type="checkbox"
+              checked={form.mumbai !== "none"}
+              onChange={(e) => set("mumbai", e.target.checked ? "packet" : "none")}
+              data-testid="staff-mumbai-checkbox"
+              className="h-4 w-4"
+            />
+            Mumbai
+          </label>
+          {form.mumbai !== "none" && (
+            <label className="inline-flex cursor-pointer items-center gap-3 font-mono text-xs uppercase tracking-[0.2em] text-sky-300">
+              <input
+                type="checkbox"
+                checked={form.mumbai === "plan"}
+                onChange={(e) => set("mumbai", e.target.checked ? "plan" : "packet")}
+                data-testid="staff-mumbai-plan-checkbox"
+                className="h-4 w-4"
+              />
+              Plan only
+            </label>
+          )}
+        </div>
+
         {packetPreview && (
           <p className="mt-6 font-mono text-xs uppercase tracking-[0.2em] text-zinc-400" data-testid="staff-packet-preview">
             Packet will be saved as: <span className="text-gold">{packetPreview}</span>
+            {form.mumbai === "packet" && <span className="ml-3 text-sky-300">· Mumbai</span>}
+            {form.mumbai === "plan" && <span className="ml-3 text-sky-300">· Mumbai (plan {form.plan_no || "…"})</span>}
             {packetIsKnown && <span className="ml-3 text-emerald-400">· existing packet — details filled in</span>}
           </p>
         )}
@@ -348,7 +392,6 @@ export default function StaffEntry() {
         <div className="mt-6 grid gap-8 sm:grid-cols-2 lg:grid-cols-4">
           <input required placeholder="Plan No (1, 1A, 2…)" value={form.plan_no} onChange={(e) => set("plan_no", e.target.value)} className="lux-input" data-testid="staff-plan-input" />
           <input required type="number" step="0.01" min="0.01" placeholder="Carat" value={form.pol_cts} onChange={(e) => set("pol_cts", e.target.value)} className="lux-input" data-testid="staff-carat-input" />
-          
 
           <label className="block">
             <span className={labelClass}>Shape</span>
@@ -364,6 +407,7 @@ export default function StaffEntry() {
             ["polish", "Polish", GRADES],
             ["symmetry", "Symmetry", GRADES],
             ["black_no_black", "Black / No-Black", ["No black", "Black"]],
+            ["reference", "Reference", ["", ...REFERENCES]],
             ["lab", "Lab", LABS],
           ].map(([key, label, opts]) => (
             <label key={key} className="block">
@@ -376,7 +420,7 @@ export default function StaffEntry() {
                 className={selectClass}
               >
                 {key === "cut" && form.shape === "PS" && <option value="">— (fancy shapes have no cut)</option>}
-                {opts.map((o) => <option key={o} value={o}>{o}</option>)}
+                {opts.map((o) => <option key={o || "none"} value={o}>{o || "—"}</option>)}
               </select>
             </label>
           ))}
@@ -418,6 +462,11 @@ export default function StaffEntry() {
         {currentPacket
           ? `Packet ${currentPacket} · ${packetItems.length} stone${packetItems.length === 1 ? "" : "s"}`
           : "Packet entries"}
+        {currentPacket && packetItems.some((s) => s.location === "mumbai") && (
+          <span className="ml-3 text-sky-300">
+            · {packetItems.every((s) => s.location === "mumbai") ? "Mumbai" : "Part Mumbai"}
+          </span>
+        )}
       </p>
       <div className="mt-4 overflow-x-auto border border-white/10" data-testid="staff-entry-table">
         <table className="w-full text-left text-sm">
