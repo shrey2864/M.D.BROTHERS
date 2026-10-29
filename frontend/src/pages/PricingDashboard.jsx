@@ -743,7 +743,7 @@ export default function PricingDashboard() {
               <th className={TH}>Table %</th>
               <th className={TH}>TD</th>
               <th className={TH}>Ratio</th>
-              <th className={TH}>Black/No black · Ref</th>
+              <th className={TH} title="Black / No black">B/NB</th>
               {isMumbai && (
                 <>
                   <th className={TH}>Girdle %</th>
@@ -798,9 +798,7 @@ export default function PricingDashboard() {
                         <td className={`${TD} font-mono text-[13px]`}>{s.table_pct ?? "—"}</td>
                         <td className={`${TD} font-mono text-[13px]`}>{s.td ?? "—"}</td>
                         <td className={`${TD} font-mono text-[13px]`}>{s.ratio ?? "—"}</td>
-                        <td className={`${TD} font-mono text-[13px]`}>
-                          {[s.black_no_black, s.reference].filter(Boolean).join(" · ") || "—"}
-                        </td>
+                        <td className={`${TD} font-mono text-[13px]`}>{s.black_no_black ?? "—"}</td>
                         {isMumbai && (
                           <>
                             <td className={`${TD} font-mono text-[13px]`}>{s.girdle_pct ?? "—"}</td>
