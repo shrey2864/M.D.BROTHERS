@@ -12,7 +12,7 @@ const EMPTY = {
   shape: "BR", pol_cts: "", color: "D", clarity: "VS1",
   cut: "EX", polish: "EX", symmetry: "EX",
   black_no_black: "No black", lab: "GIA",
-  table_pct: "", girdle_pct: "", td: "", ratio: "", remarks: "",
+  table_pct: "", girdle: "", td: "", ratio: "", remarks: "",
 };
 
 // Full names shown to staff; the "code" is what's actually sent to the backend
@@ -39,6 +39,9 @@ const BLACK_OPTIONS = [
   "No black", "Black",
   "T0B0", "T1B0", "T2B0", "T0B1", "T1B1", "T2B1", "T0B2", "T1B2", "T2B2",
 ];
+
+// Girdle: thin, medium, thick, very thick, extremely thick
+const GIRDLES = ["", "THN", "MED", "THK", "VTK", "ETK"];
 
 const GRADES = ["EX", "VG", "GD"];
 const FLUORESCENCE = ["NON", "FNT", "MED", "STG"];
@@ -222,7 +225,7 @@ export default function StaffEntry() {
       black_no_black: s.black_no_black || "No black",
       lab: s.lab || "GIA",
       table_pct: text(s.table_pct),
-      girdle_pct: text(s.girdle_pct),
+      girdle: s.girdle || "",
       td: text(s.td),
       ratio: text(s.ratio),
       remarks: String(s.remarks || "").replace(/\s*\[[^\]]*\]\s*$/, ""),
@@ -263,7 +266,7 @@ export default function StaffEntry() {
       rough_weight: form.rough_weight ? parseFloat(form.rough_weight) : null,
       pol_cts: parseFloat(form.pol_cts),
       table_pct: form.table_pct ? parseFloat(form.table_pct) : null,
-      girdle_pct: form.girdle_pct ? parseFloat(form.girdle_pct) : null,
+      girdle: form.girdle || null,
       td: form.td ? parseFloat(form.td) : null,
       ratio: form.ratio ? parseFloat(form.ratio) : null,
       remarks: form.remarks ? form.remarks : null,
@@ -426,7 +429,12 @@ export default function StaffEntry() {
           ))}
 
           <input type="number" step="0.1" placeholder="Table %" value={form.table_pct} onChange={(e) => set("table_pct", e.target.value)} className="lux-input" data-testid="staff-table-input" />
-          <input type="number" step="0.1" placeholder="Girdle %" value={form.girdle_pct} onChange={(e) => set("girdle_pct", e.target.value)} className="lux-input" data-testid="staff-girdle-input" />
+          <label className="block">
+            <span className={labelClass}>Girdle</span>
+            <select value={form.girdle} onChange={(e) => set("girdle", e.target.value)} data-testid="staff-girdle-select" className={selectClass}>
+              {GIRDLES.map((o) => <option key={o || "none"} value={o}>{o || "—"}</option>)}
+            </select>
+          </label>
           <input type="number" step="0.01" placeholder="TD" value={form.td} onChange={(e) => set("td", e.target.value)} className="lux-input" data-testid="staff-td-input" />
           <input type="number" step="0.01" placeholder="Ratio" value={form.ratio} onChange={(e) => set("ratio", e.target.value)} className="lux-input" data-testid="staff-ratio-input" />
           <input placeholder="Remarks (optional)" value={form.remarks} onChange={(e) => set("remarks", e.target.value)} className="lux-input sm:col-span-2 lg:col-span-4" data-testid="staff-remarks-input" />
