@@ -140,7 +140,37 @@ export default function PricingDashboard() {
     setSaving((s) => ({ ...s, [stoneId]: true }));
     try {
       await api.post(`/pricing/quote-stones/${stoneId}/discount`, { discount_percent: val });
-      toast.success("Discount saved — pricing updated");
+
+      // colour range (e.g. F-G): the other colour gets the same discount automatically,
+      // but ONLY the first time (while it still has no discount). After that F and G are
+      // independent: changing one never changes the other.
+      const stone = items.find((x) => x.quote_stone_id === stoneId);
+      const partners =
+        stone && stone.range_id
+          ? items.filter(
+              (x) =>
+                x.range_id === stone.range_id &&
+                x.quote_stone_id !== stoneId &&
+                x.discount_percent == null
+            )
+          : [];
+      await Promise.all(
+        partners.map((x) =>
+          api.post(`/pricing/quote-stones/${x.quote_stone_id}/discount`, { discount_percent: val })
+        )
+      );
+      if (partners.length) {
+        setDiscounts((d) => {
+          const next = { ...d };
+          partners.forEach((x) => delete next[x.quote_stone_id]);
+          return next;
+        });
+      }
+      toast.success(
+        partners.length
+          ? `Discount saved for ${[stone, ...partners].map((x) => x.color).join(" and ")}`
+          : "Discount saved — pricing updated"
+      );
       loadPacketItems(selectedPacket);
     } catch (err) {
       toast.error(formatApiError(err.response?.data?.detail));
