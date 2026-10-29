@@ -508,7 +508,7 @@ async def list_diamonds(
         if len(conds) == 1:
             query["color"] = conds[0]["color"]
         elif conds:
-            query["$or"] = conds
+            query.setdefault("$and", []).append({"$or": conds})
     if clarity:
         query["clarity"] = {"$in": clarity.split(",")}
     if fluorescence:
@@ -536,10 +536,10 @@ async def list_diamonds(
         if max_carat is not None:
             query["carat"]["$lte"] = max_carat
     if q:
-        query["$or"] = [
-            {"sku": {"$regex": re.escape(q), "$options": "i"}},
-            {"certificate_number": {"$regex": re.escape(q), "$options": "i"}},
-        ]
+    query.setdefault("$and", []).append({"$or": [
+        {"sku": {"$regex": re.escape(q), "$options": "i"}},
+        {"certificate_number": {"$regex": re.escape(q), "$options": "i"}},
+       ]})
     sort_map = {
         "price_asc": [("price", 1)],
         "price_desc": [("price", -1)],
