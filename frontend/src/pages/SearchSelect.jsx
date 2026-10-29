@@ -150,7 +150,10 @@ export default function SearchSelect() {
   const initArr = (k) => searchParams.get(k)?.split(",").filter(Boolean) || [];
   const initMinCarat = searchParams.get("min_carat");
   const initMaxCarat = searchParams.get("max_carat");
-  const initCarat = initMinCarat && initMaxCarat ? [parseFloat(initMinCarat), parseFloat(initMaxCarat)] : null;
+  const isDefaultCarat = parseFloat(initMinCarat) <= 0.18 && parseFloat(initMaxCarat) >= 10;
+  const initCarat = initMinCarat && initMaxCarat && !isDefaultCarat
+  ? [parseFloat(initMinCarat), parseFloat(initMaxCarat)]
+  : null; 
 
   const [shapes, setShapes] = useState(initArr("shape"));
   const [caratRanges, setCaratRanges] = useState(() => {
