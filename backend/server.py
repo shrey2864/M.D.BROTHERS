@@ -535,8 +535,8 @@ async def list_diamonds(
             query["carat"]["$gte"] = min_carat
         if max_carat is not None:
             query["carat"]["$lte"] = max_carat
-        if q:
-        query.setdefault("$and", []).append({"$or": [
+        if q:    
+            query.setdefault("$and", []).append({"$or": [
             {"sku": {"$regex": re.escape(q), "$options": "i"}},
             {"certificate_number": {"$regex": re.escape(q), "$options": "i"}},
         ]})
