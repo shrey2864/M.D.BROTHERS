@@ -1356,7 +1356,9 @@ class QuoteStoneBody(BaseModel):
     planner_name: Optional[str] = None
     rough_weight: Optional[float] = None
     shape_name: Optional[str] = None
-    reference: Optional[str] = None
+    reference: Optional[str] = None        # T0B0 ... T2B2
+    location: Optional[str] = None         # "surat" or "mumbai"
+    location_scope: Optional[str] = None   # "packet" = the whole packet, "plan" = this plan only
 
 from openpyxl.styles import Alignment, Border, Side, Font, PatternFill
 from openpyxl.worksheet.properties import PageSetupProperties
@@ -1422,6 +1424,7 @@ async def build_stone_docs(body: QuoteStoneBody, created_by: str, created_at: st
     rough = (body.rough_name or "").strip()
     main_no = body.packet_no.strip()
     full_packet = compose_packet_no(rough, main_no)   # e.g. CS-1-100
+    location = "mumbai" if (body.location or "").strip().lower() == "mumbai" else "surat"
 
     docs = []
     for idx, col in enumerate(colours):
@@ -1442,23 +1445,34 @@ async def build_stone_docs(body: QuoteStoneBody, created_by: str, created_at: st
             "rapaport_rate": await lookup_rapaport_rate(body.shape, body.pol_cts, col, body.clarity),
             "labour": labour,
             "discount_percent": None,
+            "location": location,
             "created_by": created_by,
             "created_at": created_at,
         })
         docs.append(doc)
     return docs
 
+async def apply_location_scope(body: QuoteStoneBody, docs: list):
+    """location_scope 'packet' = every stone of the packet, 'plan' = every stone of that plan."""
+    if not docs or body.location_scope not in ("packet", "plan"):
+        return
+    q = {"packet_no": docs[0]["packet_no"]}
+    if body.location_scope == "plan":
+        q["plan_no"] = docs[0]["plan_no"]
+    await db.quote_stones.update_many(q, {"$set": {"location": docs[0]["location"]}})
+
 
 @api_router.post("/pricing/quote-stones")
 async def create_quote_stone(body: QuoteStoneBody, user: dict = Depends(require_staff_or_pricing)):
     now = datetime.now(timezone.utc).isoformat()
     created = []
-    for doc in await build_stone_docs(body, user["user_id"], now):
+    docs = await build_stone_docs(body, user["user_id"], now)
+    for doc in docs:
         await db.quote_stones.insert_one(doc)
         doc.pop("_id", None)
         created.append(doc if user_has_pricing_access(user) else staff_view(doc))
+    await apply_location_scope(body, docs)
     return {"items": created}
-
 
 @api_router.put("/pricing/quote-stones/{quote_stone_id}")
 async def update_quote_stone(quote_stone_id: str, body: QuoteStoneBody, user: dict = Depends(require_staff_or_pricing)):
@@ -1486,6 +1500,7 @@ async def update_quote_stone(quote_stone_id: str, body: QuoteStoneBody, user: di
         await db.quote_stones.insert_one(doc)
         doc.pop("_id", None)
         out.append(doc if user_has_pricing_access(user) else staff_view(doc))
+    await apply_location_scope(body, docs)
     return {"items": out}
 
 
@@ -1503,6 +1518,7 @@ async def list_quote_stone_packets(user: dict = Depends(require_pricing_access))
             "plan_count": {"$addToSet": "$plan_no"},
             "stone_count": {"$sum": 1},
             "priced_count": {"$sum": {"$cond": [{"$eq": ["$status", "priced"]}, 1, 0]}},
+            "mumbai_count": {"$sum": {"$cond": [{"$eq": ["$location", "mumbai"]}, 1, 0]}},
             "latest": {"$max": "$created_at"},
         }},
     ]
@@ -1511,6 +1527,12 @@ async def list_quote_stone_packets(user: dict = Depends(require_pricing_access))
         {
             "packet_no": r["_id"],
             "rough_name": r.get("rough_name"),
+            # "mumbai" = the whole packet, "mixed" = only some plans are in Mumbai, "surat" = none
+            "location": (
+                "mumbai" if r.get("mumbai_count", 0) >= r["stone_count"]
+                else "mixed" if r.get("mumbai_count", 0) > 0
+                else "surat"
+            ),
             "plan_count": len({plan_group_of(p) for p in r["plan_count"]}),
             "stone_count": r["stone_count"],
             "priced_count": r["priced_count"],
@@ -2711,6 +2733,25 @@ async def change_password(body: ChangePasswordBody, user: dict = Depends(get_cur
         {"user_id": user["user_id"]}, {"$set": {"password_hash": hash_password(body.new_password)}}
     )
     return {"status": "changed"}
+    class PacketLocationBody(BaseModel):
+    packet_no: str
+    location: str                  # "surat" or "mumbai"
+    plan_no: Optional[str] = None  # leave empty = the whole packet, or give one plan (e.g. "2")
+
+
+@api_router.post("/pricing/packets/location")
+async def set_packet_location(body: PacketLocationBody, user: dict = Depends(require_pricing_access)):
+    # Send a whole packet (or just one plan of it) to Mumbai, or bring it back to Surat
+    loc = (body.location or "").strip().lower()
+    if loc not in ("surat", "mumbai"):
+        raise HTTPException(status_code=400, detail="location must be 'surat' or 'mumbai'")
+    query = {"packet_no": body.packet_no}
+    if body.plan_no:
+        query["plan_no"] = body.plan_no
+    result = await db.quote_stones.update_many(query, {"$set": {"location": loc}})
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Packet or plan not found")
+    return {"status": "updated", "location": loc}
 app.include_router(api_router)
 
 _cors_env = os.environ.get("CORS_ORIGINS", "")
