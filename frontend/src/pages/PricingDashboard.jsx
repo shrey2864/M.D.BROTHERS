@@ -46,6 +46,7 @@ const shortShape = (name) => {
   if (t === "cushion brilliant") return "Cushion BR";
   return name;
 };
+const cleanRemarks = (t) => String(t || "").replace(/\s*\[[^\]]*\]\s*$/, "").trim();
 const fmtDateTime = (iso) => (iso ? new Date(iso).toLocaleString() : "");
 
 export default function PricingDashboard() {
@@ -56,6 +57,7 @@ export default function PricingDashboard() {
   const [loadingPackets, setLoadingPackets] = useState(true);
   const [selectedPacket, setSelectedPacket] = useState(null); // null = list view
   const [search, setSearch] = useState("");
+  const [locFilter, setLocFilter] = useState("all"); // all | surat | mumbai
 
   const [items, setItems] = useState([]);
   const [discounts, setDiscounts] = useState({});
@@ -193,6 +195,18 @@ export default function PricingDashboard() {
       toast.success(`Packet ${packetNo} deleted`);
       if (selectedPacket === packetNo) backToPackets();
       else loadPackets();
+    } catch (err) {
+      toast.error(formatApiError(err.response?.data?.detail));
+    }
+  };
+
+  // the whole packet, or one plan of it, goes to Surat or Mumbai
+  const setPacketLocation = async (packetNo, location, planNo) => {
+    try {
+      await api.post("/pricing/packets/location", { packet_no: packetNo, location, plan_no: planNo || null });
+      toast.success(`${planNo ? `Plan ${planNo}` : `Packet ${packetNo}`}: ${location === "mumbai" ? "Mumbai" : "Surat"}`);
+      loadPackets();
+      if (selectedPacket === packetNo) loadPacketItems(packetNo);
     } catch (err) {
       toast.error(formatApiError(err.response?.data?.detail));
     }
@@ -350,13 +364,25 @@ export default function PricingDashboard() {
   // part of the rough name or packet number (so "CS-" shows CS-1, CS-2 ...).
   const q = search.trim().toLowerCase();
   const exactRough = q && packets.some((p) => (p.rough_name || "").toLowerCase() === q);
-  const shownPackets = !q
+  const textShown = !q
     ? packets
     : packets.filter((p) => {
         const rough = (p.rough_name || "").toLowerCase();
         if (exactRough) return rough === q;
         return rough.includes(q) || String(p.packet_no).toLowerCase().includes(q);
       });
+
+  // Surat / Mumbai filter (a packet with no location saved counts as Surat)
+  // location is "mumbai" (whole packet), "mixed" (only some plans in Mumbai) or "surat"
+  const isMumbaiPacket = (p) => p.location === "mumbai";
+  const hasMumbai = (p) => p.location === "mumbai" || p.location === "mixed";
+  const shownPackets = textShown.filter(
+    (p) => locFilter === "all" || (locFilter === "mumbai" ? hasMumbai(p) : !isMumbaiPacket(p))
+  );
+  const mumbaiCount = packets.filter(hasMumbai).length;
+  const suratCount = packets.filter((p) => !isMumbaiPacket(p)).length;
+  const allMumbai = items.length > 0 && items.every((s) => s.location === "mumbai");
+  const isMumbai = items.some((s) => s.location === "mumbai"); // the packet that is open
 
   // ---- totals: one block per plan (Plan 1 + Plan 1A together), with a separate
   // total for each colour option. A colour-range stone (D-E) has one row per
@@ -481,6 +507,26 @@ export default function PricingDashboard() {
               Clear
             </button>
           )}
+          <div className="flex items-center gap-2" data-testid="packet-location-filter">
+            {[
+              ["all", "All", packets.length],
+              ["surat", "Surat", suratCount],
+              ["mumbai", "Mumbai", mumbaiCount],
+            ].map(([key, label, count]) => (
+              <button
+                key={key}
+                onClick={() => setLocFilter(key)}
+                data-testid={`packet-filter-${key}`}
+                className={`border px-4 py-2 font-mono text-[11px] uppercase tracking-[0.2em] transition-colors ${
+                  locFilter === key
+                    ? "border-gold bg-gold text-black"
+                    : "border-white/20 text-zinc-300 hover:border-gold hover:text-gold"
+                }`}
+              >
+                {label} <span className="opacity-70">({count})</span>
+              </button>
+            ))}
+          </div>
         </div>
 
         <div className="mt-8 overflow-x-auto border border-white/10" data-testid="packets-table">
@@ -488,7 +534,8 @@ export default function PricingDashboard() {
             <thead>
               <tr className="border-b border-white/10 font-mono text-[10px] uppercase tracking-[0.25em] text-zinc-500">
                 <th className="px-5 py-4">Packet</th>
-                <th className="px-5 py-4">Rough wt</th>
+                <th className="px-5 py-4">Rough</th>
+                <th className="px-5 py-4">Mumbai</th>
                 <th className="px-5 py-4">Plans</th>
                 <th className="px-5 py-4">Stones</th>
                 <th className="px-5 py-4">Priced by</th>
@@ -502,11 +549,24 @@ export default function PricingDashboard() {
                 <tr
                   key={p.packet_no}
                   onClick={() => setSelectedPacket(p.packet_no)}
-                  className="cursor-pointer border-b border-white/5 text-zinc-300 transition-colors hover:bg-white/5"
+                  className={`cursor-pointer border-b border-white/5 text-zinc-300 transition-colors hover:bg-white/5 ${
+                    hasMumbai(p) ? "bg-sky-500/10" : ""
+                  }`}
                   data-testid={`packet-row-${p.packet_no}`}
                 >
                   <td className="px-5 py-4 font-mono text-xs text-gold">{p.packet_no}</td>
                   <td className="px-5 py-4 font-mono text-xs">{p.rough_name ?? "—"}</td>
+                  <td className="px-5 py-4" onClick={(e) => e.stopPropagation()}>
+                    <label className="flex cursor-pointer items-center gap-2 font-mono text-[11px] uppercase tracking-[0.15em] text-sky-300">
+                      <input
+                        type="checkbox"
+                        checked={isMumbaiPacket(p)}
+                        onChange={() => setPacketLocation(p.packet_no, isMumbaiPacket(p) ? "surat" : "mumbai")}
+                        data-testid={`packet-location-${p.packet_no}`}
+                      />
+                      Mumbai{p.location === "mixed" ? " (part)" : ""}
+                    </label>
+                  </td>
                   <td className="px-5 py-4 font-mono text-xs">{p.plan_count}</td>
                   <td className="px-5 py-4 font-mono text-xs">{p.stone_count}</td>
                   <td className="px-5 py-4 font-mono text-xs text-emerald-400">{p.priced_count}</td>
@@ -530,14 +590,14 @@ export default function PricingDashboard() {
               ))}
               {!loadingPackets && shownPackets.length === 0 && (
                 <tr>
-                  <td colSpan={8} className="px-5 py-10 text-center font-mono text-xs uppercase tracking-[0.2em] text-zinc-600">
+                  <td colSpan={9} className="px-5 py-10 text-center font-mono text-xs uppercase tracking-[0.2em] text-zinc-600">
                     {q ? "No packets match your search" : "No packets yet"}
                   </td>
                 </tr>
               )}
               {loadingPackets && (
                 <tr>
-                  <td colSpan={8} className="px-5 py-10 text-center font-mono text-xs uppercase tracking-[0.2em] text-zinc-600">
+                  <td colSpan={9} className="px-5 py-10 text-center font-mono text-xs uppercase tracking-[0.2em] text-zinc-600">
                     Loading…
                   </td>
                 </tr>
@@ -565,6 +625,11 @@ export default function PricingDashboard() {
           <Overline>Pricing</Overline>
           <h1 className="mt-4 font-serif text-5xl font-light text-white">
             Packet <span className="italic text-gold">{selectedPacket}</span>
+            {isMumbai && (
+              <span className="ml-4 border border-sky-400 bg-sky-500/20 px-3 py-1 align-middle font-mono text-xs uppercase tracking-[0.2em] text-sky-300">
+                {allMumbai ? "Mumbai" : "Part Mumbai"}
+              </span>
+            )}
           </h1>
           <p className="mt-3 text-sm text-zinc-500">
             {items.length} stones
@@ -579,6 +644,15 @@ export default function PricingDashboard() {
         </div>
         <div className="flex items-center gap-4">
           {LogoutButton}
+          <label className="flex cursor-pointer items-center gap-2 border border-sky-400/60 px-6 py-3 font-mono text-[11px] uppercase tracking-[0.25em] text-sky-300">
+            <input
+              type="checkbox"
+              checked={allMumbai}
+              onChange={() => setPacketLocation(selectedPacket, allMumbai ? "surat" : "mumbai")}
+              data-testid="pricing-location-checkbox"
+            />
+            Mumbai
+          </label>
           <a
             href={`${API_BASE}/pricing/quote-stones/export?packet_no=${encodeURIComponent(selectedPacket)}`}
             target="_blank"
@@ -605,6 +679,7 @@ export default function PricingDashboard() {
           <span className="font-mono text-[10px] uppercase tracking-[0.25em] text-zinc-500">Plans</span>
           {[...new Set(items.map((s) => s.plan_no))].map((planNo) => {
             const isFinal = items.some((s) => s.plan_no === planNo && s.is_final);
+            const planMumbai = items.some((s) => s.plan_no === planNo && s.location === "mumbai");
             return (
               <span
                 key={planNo}
@@ -616,6 +691,15 @@ export default function PricingDashboard() {
               >
                 Plan {planNo}
                 {isFinal && " ★ FINAL"}
+                <label className="flex cursor-pointer items-center gap-1 text-[10px] uppercase tracking-[0.15em] text-sky-300">
+                  <input
+                    type="checkbox"
+                    checked={planMumbai}
+                    onChange={() => setPacketLocation(selectedPacket, planMumbai ? "surat" : "mumbai", planNo)}
+                    data-testid={`plan-location-${planNo}`}
+                  />
+                  Mumbai
+                </label>
                 <button
                   onClick={() => toggleFinal(planNo, !isFinal)}
                   title={isFinal ? "Remove the final mark" : "Mark this plan as final"}
@@ -659,6 +743,13 @@ export default function PricingDashboard() {
               <th className={TH}>Table %</th>
               <th className={TH}>TD</th>
               <th className={TH}>Ratio</th>
+              <th className={TH}>Black/No black · Ref</th>
+              {isMumbai && (
+                <>
+                  <th className={TH}>Girdle %</th>
+                  <th className={TH}>Remarks</th>
+                </>
+              )}
               <th className={TH}>Rapaport</th>
               <th className={TH}>Discount %</th>
               <th className={TH}>Gross</th>
@@ -680,7 +771,7 @@ export default function PricingDashboard() {
                     {sec.rows.map((s) => (
                       <tr
                         key={s.quote_stone_id}
-                        className={`border-b border-white/5 text-zinc-300 ${s.is_final ? "bg-emerald-500/10" : ""}`}
+                        className={`border-b border-white/5 text-zinc-300 ${s.is_final ? "bg-emerald-500/10" : s.location === "mumbai" ? "bg-sky-500/10" : ""}`}
                         data-testid={`pricing-row-${s.quote_stone_id}`}
                       >
                         <td className={`${TD} font-mono text-[13px]`}>{s.packet_no}</td>
@@ -707,6 +798,17 @@ export default function PricingDashboard() {
                         <td className={`${TD} font-mono text-[13px]`}>{s.table_pct ?? "—"}</td>
                         <td className={`${TD} font-mono text-[13px]`}>{s.td ?? "—"}</td>
                         <td className={`${TD} font-mono text-[13px]`}>{s.ratio ?? "—"}</td>
+                        <td className={`${TD} font-mono text-[13px]`}>
+                          {[s.black_no_black, s.reference].filter(Boolean).join(" · ") || "—"}
+                        </td>
+                        {isMumbai && (
+                          <>
+                            <td className={`${TD} font-mono text-[13px]`}>{s.girdle_pct ?? "—"}</td>
+                            <td className={`${TD} min-w-[10rem] !whitespace-normal text-[13px]`}>
+                              {cleanRemarks(s.remarks) || "—"}
+                            </td>
+                          </>
+                        )}
                         <td className={`${TD} font-mono text-[13px]`}>{s.rapaport_rate ?? "—"}</td>
                         <td className={TD}>
                           <div className="flex items-center gap-1">
@@ -785,7 +887,7 @@ export default function PricingDashboard() {
                           {bestTotalId === `${g.key}-${si}` ? " ▲ HIGHEST" : ""}
                         </td>
                         <td className="px-4 py-3.5">{t.carat.toFixed(2)}</td>
-                        <td colSpan={9} className="px-4 py-3.5"></td>
+                        <td colSpan={isMumbai ? 12 : 10} className="px-4 py-3.5"></td>
                         <td className="px-4 py-3.5 text-gold">{t.pending ? "Pending" : fmt(t.gross)}</td>
                         <td className="px-4 py-3.5">{t.pending ? "—" : fmt(t.labour)}</td>
                         <td className="px-4 py-3.5 text-emerald-400">{t.pending ? "Pending" : fmt(t.net)}</td>
@@ -798,7 +900,7 @@ export default function PricingDashboard() {
             ))}
             {items.length === 0 && (
               <tr>
-                <td colSpan={23} className="px-5 py-10 text-center font-mono text-[13px] uppercase tracking-[0.2em] text-zinc-600">
+                <td colSpan={isMumbai ? 26 : 24} className="px-5 py-10 text-center font-mono text-[13px] uppercase tracking-[0.2em] text-zinc-600">
                   No stones in this packet
                 </td>
               </tr>
