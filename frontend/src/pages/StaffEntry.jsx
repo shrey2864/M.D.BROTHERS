@@ -44,7 +44,7 @@ const BLACK_OPTIONS = [
 const GIRDLES = ["", "THN", "MED", "THK", "VTK", "ETK"];
 
 const GRADES = ["EX", "VG", "GD"];
-const FLUORESCENCE = ["NON", "FNT", "MED", "STG"];
+const FLUORESCENCE = ["NON", "FNT", "MED", "STG", "VST"];
 const LABS = ["GIA", "IGI", "HRD"];
 
 // The planners - fixed names, chosen from a list (not typed)
