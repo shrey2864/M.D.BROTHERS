@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useParams, useNavigate } from "react-router-dom";
 import { ArrowLeft, MessageCircle, Download, FileBadge, Play, ImageIcon } from "lucide-react";
 import { api } from "@/lib/api";
 import { waLink } from "@/lib/config";
@@ -23,6 +23,7 @@ const SPEC_LABELS = [
 export default function DiamondDetail() {
   const { id } = useParams();
   const { user } = useAuth();
+  const navigate = useNavigate();
   const canView = !!user && (user.role === "admin" || user.status === "approved");
   const [diamond, setDiamond] = useState(null);
   const [notFound, setNotFound] = useState(false);
@@ -84,11 +85,12 @@ export default function DiamondDetail() {
 
   return (
     <div className="mx-auto max-w-[1440px] px-6 pb-32 pt-28" data-testid="diamond-detail-page">
-      <Link to="/collection" data-testid="diamond-back-link"
+       <button type="button" data-testid="diamond-back-link"
+        onClick={() => (window.history.length > 1 ? navigate(-1) : navigate("/collection"))}
         className="group inline-flex items-center gap-2 font-mono text-[11px] uppercase tracking-[0.25em] text-zinc-500 transition-colors hover:text-gold">
         <ArrowLeft className="h-4 w-4 transition-transform group-hover:-translate-x-1" strokeWidth={1.5} />
         Collection
-      </Link>
+      </button>
 
       <div className="mt-10 grid gap-16 lg:grid-cols-2">
         {/* Sticky image */}
