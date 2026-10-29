@@ -736,11 +736,11 @@ export default function PricingDashboard() {
               <th className={TH}>Rough wt</th>
               <th className={TH}>Shape</th>
               <th className={TH}>Carat</th>
-              <th className={TH}>Color/Clarity</th>
+              <th className={TH} title="Color / Clarity">Col/Clar</th>
               <th className={TH}>C/P/S</th>
               <th className={TH}>Fls</th>
               <th className={TH}>Lab</th>
-              <th className={TH}>Table %</th>
+              <th className={TH} title="Table %">Tbl</th>
               <th className={TH}>TD</th>
               <th className={TH}>Ratio</th>
               <th className={TH} title="Black / No black">B/NB</th>
@@ -751,7 +751,7 @@ export default function PricingDashboard() {
                 </>
               )}
               <th className={TH}>Rapaport</th>
-              <th className={TH}>Discount %</th>
+              <th className={TH} title="Discount %">Disc</th>
               <th className={TH}>Gross</th>
               <th className={TH}>Labour</th>
               <th className={TH}>Net</th>
