@@ -11,7 +11,7 @@ const EMPTY = {
   plan_no: "",
   shape: "BR", pol_cts: "", color: "D", clarity: "VS1",
   cut: "EX", polish: "EX", symmetry: "EX",
-  black_no_black: "No black", reference: "", lab: "GIA",
+  black_no_black: "No black", lab: "GIA",
   table_pct: "", girdle_pct: "", td: "", ratio: "", remarks: "",
 };
 
@@ -34,8 +34,11 @@ const SHAPES = [
 ];
 const SHAPE_LABEL = { BR: "Round", PS: "Fancy shape" };
 
-// Reference: T = table, B = black (0, 1 or 2 each)
-const REFERENCES = ["T0B0", "T1B0", "T2B0", "T0B1", "T1B1", "T2B1", "T0B2", "T1B2", "T2B2"];
+// Black / No-Black: one choice, either plain black or one of the T (table) / B (black) references
+const BLACK_OPTIONS = [
+  "No black", "Black",
+  "T0B0", "T1B0", "T2B0", "T0B1", "T1B1", "T2B1", "T0B2", "T1B2", "T2B2",
+];
 
 const GRADES = ["EX", "VG", "GD"];
 const FLUORESCENCE = ["NON", "FNT", "MED", "STG"];
@@ -217,7 +220,6 @@ export default function StaffEntry() {
       polish: s.polish || "EX",
       symmetry: s.symmetry || "EX",
       black_no_black: s.black_no_black || "No black",
-      reference: s.reference || "",
       lab: s.lab || "GIA",
       table_pct: text(s.table_pct),
       girdle_pct: text(s.girdle_pct),
@@ -255,7 +257,6 @@ export default function StaffEntry() {
       location_scope: mumbai === "none" ? null : mumbai, // "packet" = whole packet, "plan" = only this plan
       shape_name: (SHAPES.find((x) => x.label === shapeLabel) || {}).short || shapeLabel, // shown in Excel + dashboard
       cut: form.shape === "PS" ? null : form.cut, // fancy shapes have no cut
-      reference: form.reference || null,
       rough_name: form.rough_name.trim(),
       packet_no: form.packet_no.trim(),
       planner_name: form.planner_name.trim(),
@@ -406,8 +407,7 @@ export default function StaffEntry() {
             ["cut", "Cut", GRADES],
             ["polish", "Polish", GRADES],
             ["symmetry", "Symmetry", GRADES],
-            ["black_no_black", "Black / No-Black", ["No black", "Black"]],
-            ["reference", "Reference", ["", ...REFERENCES]],
+            ["black_no_black", "Black / No-Black", BLACK_OPTIONS],
             ["lab", "Lab", LABS],
           ].map(([key, label, opts]) => (
             <label key={key} className="block">
