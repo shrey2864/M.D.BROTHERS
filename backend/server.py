@@ -1356,6 +1356,7 @@ class QuoteStoneBody(BaseModel):
     planner_name: Optional[str] = None
     rough_weight: Optional[float] = None
     shape_name: Optional[str] = None
+    reference: Optional[str] = None
 
 from openpyxl.styles import Alignment, Border, Side, Font, PatternFill
 from openpyxl.worksheet.properties import PageSetupProperties
