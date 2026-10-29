@@ -2733,7 +2733,7 @@ async def change_password(body: ChangePasswordBody, user: dict = Depends(get_cur
         {"user_id": user["user_id"]}, {"$set": {"password_hash": hash_password(body.new_password)}}
     )
     return {"status": "changed"}
-    class PacketLocationBody(BaseModel):
+class PacketLocationBody(BaseModel):
     packet_no: str
     location: str                  # "surat" or "mumbai"
     plan_no: Optional[str] = None  # leave empty = the whole packet, or give one plan (e.g. "2")
@@ -2752,6 +2752,7 @@ async def set_packet_location(body: PacketLocationBody, user: dict = Depends(req
     if result.matched_count == 0:
         raise HTTPException(status_code=404, detail="Packet or plan not found")
     return {"status": "updated", "location": loc}
+    
 app.include_router(api_router)
 
 _cors_env = os.environ.get("CORS_ORIGINS", "")
