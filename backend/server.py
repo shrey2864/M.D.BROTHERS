@@ -1349,6 +1349,7 @@ class QuoteStoneBody(BaseModel):
     lab: Optional[str] = None
     table_pct: Optional[float] = None
     girdle_pct: Optional[float] = None
+    girdle: Optional[str] = None
     td: Optional[float] = None
     ratio: Optional[float] = None
     remarks: Optional[str] = None
