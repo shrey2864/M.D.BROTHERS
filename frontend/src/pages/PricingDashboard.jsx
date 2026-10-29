@@ -413,6 +413,11 @@ export default function PricingDashboard() {
   const suratCount = packets.filter((p) => !isMumbaiPacket(p)).length;
   const allMumbai = items.length > 0 && items.every((s) => s.location === "mumbai");
   const isMumbai = items.some((s) => s.location === "mumbai"); // the packet that is open
+  // the Remarks column is only added when staff wrote a remark for at least one stone
+  const hasRemarks = isMumbai && items.some((s) => cleanRemarks(s.remarks));
+  // same for Girdle: the column is only added when staff chose a girdle for at least one stone
+  const hasGirdle = isMumbai && items.some((s) => s.girdle);
+  const extraCols = (hasGirdle ? 1 : 0) + (hasRemarks ? 1 : 0);
 
   // ---- totals: one block per plan (Plan 1 + Plan 1A together), with a separate
   // total for each colour option. A colour-range stone (D-E) has one row per
@@ -776,8 +781,8 @@ export default function PricingDashboard() {
               <th className={TH} title="Black / No black">B/NB</th>
               {isMumbai && (
                 <>
-                  <th className={TH}>Girdle %</th>
-                  <th className={TH}>Remarks</th>
+                  {hasGirdle && <th className={TH}>Girdle</th>}
+                  {hasRemarks && <th className={TH}>Remarks</th>}
                 </>
               )}
               <th className={TH}>Rapaport</th>
@@ -831,10 +836,12 @@ export default function PricingDashboard() {
                         <td className={`${TD} font-mono text-[13px]`}>{s.black_no_black ?? "—"}</td>
                         {isMumbai && (
                           <>
-                            <td className={`${TD} font-mono text-[13px]`}>{s.girdle_pct ?? "—"}</td>
-                            <td className={`${TD} min-w-[10rem] !whitespace-normal text-[13px]`}>
-                              {cleanRemarks(s.remarks) || "—"}
-                            </td>
+                            {hasGirdle && <td className={`${TD} font-mono text-[13px]`}>{s.girdle ?? "—"}</td>}
+                            {hasRemarks && (
+                              <td className={`${TD} min-w-[10rem] !whitespace-normal text-[13px]`}>
+                                {cleanRemarks(s.remarks) || "—"}
+                              </td>
+                            )}
                           </>
                         )}
                         <td className={`${TD} font-mono text-[13px]`}>{s.rapaport_rate ?? "—"}</td>
@@ -915,7 +922,7 @@ export default function PricingDashboard() {
                           {bestTotalId === `${g.key}-${si}` ? " ▲ HIGHEST" : ""}
                         </td>
                         <td className="px-4 py-3.5">{t.carat.toFixed(2)}</td>
-                        <td colSpan={isMumbai ? 12 : 10} className="px-4 py-3.5"></td>
+                        <td colSpan={10 + extraCols} className="px-4 py-3.5"></td>
                         <td className="px-4 py-3.5 text-gold">{t.pending ? "Pending" : fmt(t.gross)}</td>
                         <td className="px-4 py-3.5">{t.pending ? "—" : fmt(t.labour)}</td>
                         <td className="px-4 py-3.5 text-emerald-400">{t.pending ? "Pending" : fmt(t.net)}</td>
@@ -928,7 +935,7 @@ export default function PricingDashboard() {
             ))}
             {items.length === 0 && (
               <tr>
-                <td colSpan={isMumbai ? 26 : 24} className="px-5 py-10 text-center font-mono text-[13px] uppercase tracking-[0.2em] text-zinc-600">
+                <td colSpan={24 + extraCols} className="px-5 py-10 text-center font-mono text-[13px] uppercase tracking-[0.2em] text-zinc-600">
                   No stones in this packet
                 </td>
               </tr>
