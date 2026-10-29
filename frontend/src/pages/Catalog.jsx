@@ -32,6 +32,7 @@ export default function Catalog() {
     cut: initArr("cut"), polish: initArr("polish"), symmetry: initArr("symmetry"),
     fluorescence: initArr("fluorescence"), lab: initArr("lab"),
   });
+  const [caratRanges, setCaratRanges] = useState(searchParams.get("carat_ranges") || "");
   const [carat, setCarat] = useState([
     parseFloat(searchParams.get("min_carat")) || 0.18,
     parseFloat(searchParams.get("max_carat")) || 10,
@@ -55,12 +56,13 @@ export default function Catalog() {
       return;
     }
     setLoading(true);
-    const params = {
-      sort,
-      min_carat: carat[0],
-      max_carat: carat[1],
-      ...(q && { q }),
-    };
+       const params = { sort, ...(q && { q }) };
+    if (caratRanges) {
+      params.carat_ranges = caratRanges;
+    } else {
+      params.min_carat = carat[0];
+      params.max_carat = carat[1];
+    }
     ["shape", "color", "clarity", "cut", "polish", "symmetry", "fluorescence", "lab"].forEach((k) => {
       if (filters[k].length) params[k] = filters[k].join(",");
     });
@@ -71,7 +73,7 @@ export default function Catalog() {
         .finally(() => setLoading(false));
     }, 250);
     return () => clearTimeout(t);
-  }, [filters, carat, sort, q, canView]);
+ }, [filters, carat, caratRanges, sort, q, canView]);
 
   if (user === null)
     return (
@@ -168,7 +170,7 @@ export default function Catalog() {
               </AccordionTrigger>
               <AccordionContent>
                 <div className="px-1 pt-2">
-                  <Slider min={0.18} max={10} step={0.01} value={carat} onValueChange={setCarat} data-testid="filter-carat-slider" />
+                  <Slider min={0.18} max={10} step={0.01} value={carat} onValueChange={(v) => { setCaratRanges(""); setCarat(v); }} data-testid="filter-carat-slider" />
                   <div className="mt-3 flex justify-between font-mono text-[10px] tracking-[0.2em] text-zinc-500">
                     <span data-testid="carat-min-label">{carat[0].toFixed(2)} CT</span>
                     <span data-testid="carat-max-label">{carat[1].toFixed(2)} CT</span>
@@ -197,8 +199,12 @@ export default function Catalog() {
           if (filters.symmetry.length) params.set("symmetry", filters.symmetry.join(","));
           if (filters.fluorescence.length) params.set("fluorescence", filters.fluorescence.join(","));
           if (filters.lab.length) params.set("lab", filters.lab.join(","));
-          params.set("min_carat", carat[0]);
-          params.set("max_carat", carat[1]);
+          if (caratRanges) {
+            params.set("carat_ranges", caratRanges);
+          } else {
+            params.set("min_carat", carat[0]);
+            params.set("max_carat", carat[1]);
+          }
           navigate(`/search?${params.toString()}`);
        }}
         data-testid="modify-search-button"
