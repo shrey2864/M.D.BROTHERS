@@ -153,7 +153,13 @@ export default function SearchSelect() {
   const initCarat = initMinCarat && initMaxCarat ? [parseFloat(initMinCarat), parseFloat(initMaxCarat)] : null;
 
   const [shapes, setShapes] = useState(initArr("shape"));
-  const [caratRanges, setCaratRanges] = useState(initCarat ? [initCarat] : []);
+  const [caratRanges, setCaratRanges] = useState(() => {
+    const cr = searchParams.get("carat_ranges");
+    if (cr) {
+      return cr.split(",").map((s) => s.split("-").map(parseFloat)).filter((r) => r.length === 2 && !r.some(isNaN));
+    }
+    return initCarat ? [initCarat] : [];
+  });
   const [caratFrom, setCaratFrom] = useState("");
   const [caratTo, setCaratTo] = useState("");
   const [colors, setColors] = useState(initArr("color"));
