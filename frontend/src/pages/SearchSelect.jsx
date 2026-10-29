@@ -223,7 +223,7 @@ const toggleCaratRange = (range) => {
 
   const reset = () => {
     setShapes([]);
-    setCarat(null);
+    setCaratRanges([]);
     setCaratFrom("");
     setCaratTo("");
     setColors([]);
