@@ -37,7 +37,7 @@ export default function Catalog() {
     parseFloat(searchParams.get("min_carat")) || 0.18,
     parseFloat(searchParams.get("max_carat")) || 10,
   ]);
-  const [sort, setSort] = useState("featured");
+  const [sort, setSort] = useState(searchParams.get("sort") || "featured");
   const [q, setQ] = useState("");
   const [data, setData] = useState({ items: [], total: 0 });
   const [loading, setLoading] = useState(true);
