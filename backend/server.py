@@ -468,7 +468,33 @@ def build_seed_diamonds() -> List[dict]:
         diamonds.append(twin)
     return diamonds
 
+SHAPE_FULL = {
+    "round": "Round", "br": "Round",
+    "oval": "Oval",
+    "pear": "Pear",
+    "marquise": "Marquise",
+    "heart": "Heart",
+    "cushion": "Cushion",
+    "emerald": "Emerald",
+    "princess": "Princess", "pri": "Princess",
+    "radiant": "Radiant", "ra": "Radiant",
+}
 
+
+def full_shape(value):
+    if not value:
+        return value
+    return SHAPE_FULL.get(str(value).strip().lower().replace(".", ""), value)
+
+
+def expand_shapes(names):
+    out = set()
+    for n in names:
+        out.add(n)
+        for alias, full in SHAPE_FULL.items():
+            if full.lower() == n.strip().lower():
+                out.update({alias, alias.upper(), alias.capitalize()})
+    return list(out)
 @api_router.get("/diamonds")
 async def list_diamonds(
     request: Request,
@@ -492,7 +518,7 @@ async def list_diamonds(
 
     query = {}
     if shape:
-        query["shape"] = {"$in": shape.split(",")}
+        query["shape"] = {"$in": expand_shapes(shape.split(","))}
     if cut:
         query["cut"] = {"$in": cut.split(",")}
     if color:
@@ -551,6 +577,8 @@ async def list_diamonds(
     cursor = db.diamonds.find(query, {"_id": 0}).sort(sort_map.get(sort, sort_map["featured"])).limit(limit)
     items = await cursor.to_list(limit)
     total = await db.diamonds.count_documents(query)
+    for d in items:
+        d["shape"] = full_shape(d.get("shape"))
 
     if not can_see_price:
         for d in items:
